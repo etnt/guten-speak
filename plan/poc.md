@@ -43,6 +43,8 @@ Capture the measured real-time factor and RAM in this doc after the run.
 
 ## 3. The main technical unknowns to resolve
 
+0. **Can `sherpa-onnx` (prebuilt Flutter libs) run a cloning-capable model
+   on-device well enough?** If so, most of the unknowns below disappear.
 1. **Cross-compiling `pocket-tts-raven` + ONNX Runtime for Android arm64**
    via the NDK (this is the crux — CMake + custom-op registration).
 2. **FFI surface**: mapping the C API (`ptt_create`, `ptt_stream_start`,
@@ -56,6 +58,17 @@ Capture the measured real-time factor and RAM in this doc after the run.
 
 ## 4. Suggested build order (de-risk hardest-first)
 
+0. **Cheaper-path spike: `sherpa-onnx` first (time-boxed ~1 day).**
+   Before doing any custom NDK work, try the **`sherpa_onnx` pub.dev package**,
+   which ships **prebuilt Android native libraries** and Dart FFI bindings. Check
+   whether a **cloning-capable** model can run on-device with acceptable quality
+   and speed.
+   - **If yes** → this is the lowest-effort path; build the PoC on `sherpa_onnx`
+     and **skip steps 1–2** (no custom cross-compile needed).
+   - **If no** (no good zero-shot cloning model available, or quality/speed
+     insufficient) → fall through to step 1 and build the `pocket-tts-raven`
+     engine as originally planned.
+   See [tts-options.md](tts-options.md) for the rationale.
 1. **Native build spike (no Flutter yet).**
    Cross-compile `pocket-tts-raven` for `arm64-v8a` with the NDK. Push the CLI
    (or a tiny test harness) to a device via `adb` and confirm it synthesizes a
@@ -115,6 +128,8 @@ Native side: Android NDK, CMake, ONNX Runtime (Android build), the
 
 ## 8. Outcome → next step
 
+- **`sherpa-onnx` spike passes** → build the PoC on it (lowest effort); the
+  custom native build may be unnecessary.
 - **Pass** → proceed to Phase 1 (Gutendex catalog + reader) and reuse the FFI
   TTS service unchanged.
 - **Struggles on mid-range devices** → keep the PoC engine for capable phones
