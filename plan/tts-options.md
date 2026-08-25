@@ -39,6 +39,10 @@ combination is rare and rules out most options.
 - **Caveat:** true *zero-shot from a 10 s clip* depends on the specific model it
   supports at the time — not guaranteed to match pocket-tts quality. Verify what
   cloning-capable models are runnable under it before relying on it.
+- **Spike outcome (2026-08-25): PASSED on macOS.** `sherpa_onnx` runs **Pocket
+  TTS** with zero-shot cloning; the **fp32** model clones faithfully
+  (Steps=28, Temp=0.20). This is the same model raven uses — see the
+  runtime-comparison section below and [poc.md](poc.md) §9.
 - **Recommendation:** do a 1-day spike here first. If a cloning model runs well
   via `sherpa_onnx`, it's a far lower-effort integration path.
 
@@ -66,6 +70,37 @@ combination is rare and rules out most options.
 
 ---
 
+## sherpa-onnx vs pocket-tts-raven — same model, different runtime
+
+Both run **the same underlying model** — Kyutai **Pocket TTS**, exported to ONNX,
+zero-shot cloning from 6–15 s of audio, mono float32 @ 24 kHz, with the speaker
+embedding cached after first use. They differ in **everything around** the model:
+
+| | **sherpa-onnx** (our Step-0 spike) | **pocket-tts-raven** (the README demo) |
+|---|---|---|
+| Runtime | k2-fsa's `OfflineTtsPocket` C++ impl | Custom single-file C++ driver (`src/pocket_tts.cpp`) |
+| Engine | ONNX Runtime (via sherpa) | ONNX Runtime (stock) **+ offline graph rewrites** — delta-KV cache, cross-layer dedup, merged flow, custom-op injection |
+| ONNX export | sherpa's `sherpa-onnx-pocket-tts-2026-01-26` bundle | Kyutai's original bundle, **re-optimized locally** by `tools/prepare_models.sh` |
+| Bindings | sherpa's **Dart FFI**, **prebuilt Android/macOS `.so`** | Own **C FFI** (`ptt_create`, `ptt_stream_*`) + WASM; **no prebuilt Android lib** (NDK cross-compile needed) |
+| Precision | int8 / fp32 (we use **fp32**) | int8 / fp32 (`--precision`) |
+| Step / temp knobs | `numSteps` (we use **28**), `temperature` (**0.20**) | `--lsd-steps` (default **1**), `--temperature` (default **0.7**) |
+| Speed | fp32 slower; RTF TBD on-device | **~33× realtime native** (M4 Max), ~14× browser, ~3–4× iPhone WASM |
+| License | runtime Apache-2.0; **model non-commercial** | runtime **MIT**; same non-commercial model terms |
+
+**Key takeaways:**
+- We chose **sherpa-onnx for the spike specifically because it ships prebuilt
+  Android native libraries** — it lets us skip the NDK/CMake cross-compile that
+  is the make-or-break step for raven.
+- Raven's big advantage is **speed**: its graph rewrites ("merged flow") appear
+  to reach good quality at **~1 flow step** vs the **~28** we needed under
+  sherpa. If on-device **RTF becomes a problem on Android**, raven's optimized
+  export is the strongest lever — but it costs the NDK build we're avoiding.
+- The **model license is identical** (non-commercial) either way, so the runtime
+  choice does not change the commercial-viability flag (see
+  [viability.md](viability.md)).
+
+---
+
 ## Recommendation
 
 1. **Add a cheaper spike before the pocket-tts PoC:** evaluate **`sherpa-onnx`**
@@ -81,3 +116,8 @@ combination is rare and rules out most options.
 **Net:** pocket-tts-raven is still the strongest fit for the actual goal, but
 **sherpa-onnx deserves a quick look first** because its prebuilt Flutter
 integration could save the most expensive part of the PoC.
+
+**Update (2026-08-25):** the sherpa-onnx spike **passed** — same Pocket TTS
+model, no NDK build needed. It is now the default runtime for Step 0. Keep
+**pocket-tts-raven in reserve** as the speed lever if on-device RTF is
+insufficient on mid-range Android.
