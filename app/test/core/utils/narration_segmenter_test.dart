@@ -47,9 +47,7 @@ void main() {
 
     test('absorbs closing quotes into the sentence', () {
       const segmenter = NarrationSegmenter(maxSentences: 1);
-      final units = segmenter.segmentParagraphs(<String>[
-        '"Stop!" He left.',
-      ]);
+      final units = segmenter.segmentParagraphs(<String>['"Stop!" He left.']);
 
       expect(units.first.text, '"Stop!"');
       expect(units.last.text, 'He left.');

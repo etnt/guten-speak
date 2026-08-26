@@ -41,7 +41,8 @@ It is grounded in two things we already have:
 | Area | Source | Status |
 |---|---|---|
 | Feature-first architecture, theming, nav shell | guten-read | ✅ reuse as-is |
-| Gutendex catalog + search + book detail | guten-read | ✅ built, reuse |
+| Gutendex Discover (popular + curated topics) | guten-read | ✅ built, reuse |
+| **Offline local catalog (search + book detail from `pg_catalog.csv`)** | new | ✅ built (Phase B) |
 | Dio client + User-Agent interceptor + `Failure`/`Result` | guten-read | ✅ reuse |
 | Download pipeline + Gutenberg boilerplate stripper | guten-read plan (Phase 3) | ⬜ build (shared need) |
 | Text reader (lazy render, paragraph-index positions, TOC) | guten-read plan (Phase 4) | ⬜ build (shared need) |
@@ -129,10 +130,29 @@ lib/
 
 ## 5. Core modules & specifications
 
-### 5.1 Catalog & Search (`features/catalog`) — reuse
-Already implemented in guten-read: Gutendex `search`/`topic`/`languages`/`page`,
-Discover (popular + curated subjects), debounced Search, Book Detail. Add a
-**"Listen"** action alongside "Read" on the Book Detail screen.
+### 5.1 Catalog & Search (`features/catalog`) — reuse + local catalog
+Discover (popular + curated subjects) stays on the **Gutendex** API (it has the
+download-count ranking the carousels need). **Search and Book Detail, however,
+run against an offline, on-device catalog** — Gutendex proved intermittently
+unreliable (it accepts the connection but sends 0 bytes, stalling in streaks),
+which made search flaky.
+
+- **`LocalCatalogDataSource`** indexes Project Gutenberg's own
+  `pg_catalog.csv` (~21 MB, ~80k `Text` entries) into a plain `sqflite` table
+  and serves search + by-id lookups instantly and offline. Search is a
+  case-insensitive `LIKE` over pre-lowercased title/author columns (FTS5 is
+  **not** used — Android's bundled SQLite omits that module). Cover/plain-text
+  URLs are synthesized from the book id, so a local-only `BookSummary` is enough
+  to open, read, and download a book.
+- **`CatalogImportService`** downloads the CSV once (with progress), parses it
+  in a background isolate (`compute`), and populates the index; metadata
+  (`imported_at`, source `last-modified`) is stored for future refresh. Import
+  is triggered lazily the first time the Search screen opens.
+- Gutendex remains the **fallback** for book detail (if an id isn't in the local
+  index yet) and keeps a short per-attempt timeout + retry for the Discover
+  calls.
+
+Add a **"Listen"** action alongside "Read" on the Book Detail screen.
 
 ### 5.2 Download & text pipeline (`features/library`, `core/utils`) — build
 Per guten-read Phase 3, plus a narration-specific step:
@@ -335,6 +355,18 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
       _(`core/storage/app_database.dart` (v1, FK cascade) + `LibraryLocalDataSource`;
       Library screen lists/opens/deletes downloaded books. Schema adds
       `language`/`cover_url` to `books` for offline display.)_
+- [x] **Offline local catalog** — replace the flaky Gutendex search/detail with
+      an on-device index of Project Gutenberg's `pg_catalog.csv`.
+      _(`CatalogImportService` downloads the CSV (~21 MB) once with progress,
+      parses it in a `compute` isolate via the `csv` package (RFC-4180 — fields
+      have embedded commas/newlines), and `LocalCatalogDataSource.replaceAll`
+      indexes ~80k `Text` entries into a plain `sqflite` table (`app_database`
+      bumped to v2 with `catalog` + `catalog_meta`, created in `onCreate` and
+      `onUpgrade`). Search is a case-insensitive `LIKE` over pre-lowercased
+      title/author (FTS5 unavailable in Android's bundled SQLite). Search +
+      book detail now resolve locally; Discover popular/topic stay on Gutendex.
+      Cover/plain-text URLs synthesized from the id via `AppConstants`. Import is
+      lazily triggered when the Search screen first opens, with a progress UI.)_
 
 ### Phase C — Narration core (port PoC)
 - [ ] Port `tts_service.dart`, `model_manager.dart`, WAV I/O into `core/tts/`

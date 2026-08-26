@@ -6,7 +6,7 @@ part of 'app_database.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$appDatabaseHash() => r'8427bed175e133744ecafd5fcdcc6bd42fdd4bf8';
+String _$appDatabaseHash() => r'9eab739319d520df386d74995b11dbfc64288d9f';
 
 /// Opens (creating on first run) the shared metadata database and keeps it open
 /// for the app's lifetime.

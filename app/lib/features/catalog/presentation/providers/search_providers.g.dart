@@ -6,13 +6,12 @@ part of 'search_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$searchResultsHash() => r'da489ecf792a6b271143c1011884c76d43c29655';
+String _$searchResultsHash() => r'536621f75df7b431ca67b0e735769e76491f61bf';
 
-/// Debounced search results for the current [SearchQuery].
+/// Search results for the submitted [SearchQuery].
 ///
-/// Waits 400ms after the last keystroke before hitting the network. When the
-/// query changes the provider is disposed, which cancels both the debounce and
-/// any in-flight request.
+/// Runs against the local, offline catalog index — instant and independent of
+/// the Gutendex API. Fires only when the submitted query changes.
 ///
 /// Copied from [searchResults].
 @ProviderFor(searchResults)
@@ -32,8 +31,8 @@ final searchResultsProvider =
 typedef SearchResultsRef = AutoDisposeFutureProviderRef<List<BookSummary>>;
 String _$searchQueryHash() => r'1f7487578a481f855770a91719d9d7f2792ac37e';
 
-/// Holds the current search query text. The UI updates this on every keystroke;
-/// debouncing happens in [searchResults].
+/// Holds the **submitted** search query. The text field updates this only when
+/// the user presses the search/enter action, so typing does not hit the index.
 ///
 /// Copied from [SearchQuery].
 @ProviderFor(SearchQuery)

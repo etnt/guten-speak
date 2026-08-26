@@ -26,7 +26,8 @@ class LibraryScreen extends ConsumerWidget {
           if (books.isEmpty) {
             return const EmptyView(
               icon: Icons.menu_book_outlined,
-              message: 'No downloaded books yet.\n'
+              message:
+                  'No downloaded books yet.\n'
                   'Find a book in Discover and tap Download.',
             );
           }
@@ -51,11 +52,7 @@ class _LibraryTile extends ConsumerWidget {
     return ListTile(
       leading: const Icon(Icons.menu_book),
       title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        book.author,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      subtitle: Text(book.author, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: IconButton(
         icon: const Icon(Icons.delete_outline),
         tooltip: 'Remove from library',

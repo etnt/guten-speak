@@ -74,9 +74,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _itemPositionsListener.itemPositions.removeListener(_onScroll);
     // Best-effort final save of the last known position. Uses the captured
     // controller (kept alive) rather than `ref`, which is invalid in dispose.
-    unawaited(
-      _readerController?.saveProgress(widget.bookId, _firstVisible),
-    );
+    unawaited(_readerController?.saveProgress(widget.bookId, _firstVisible));
     super.dispose();
   }
 
@@ -142,8 +140,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         loading: () => const LoadingView(message: 'Preparing the book…'),
         error: (error, _) => ErrorView(
           error: error,
-          onRetry: () =>
-              ref.invalidate(readerContentProvider(widget.bookId)),
+          onRetry: () => ref.invalidate(readerContentProvider(widget.bookId)),
         ),
         data: (content) => _buildReader(content, settings, palette),
       ),

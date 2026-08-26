@@ -127,10 +127,7 @@ class BookDownloadController extends _$BookDownloadController {
         return libraryBook;
       },
       onFailure: (failure) {
-        state = DownloadState(
-          status: DownloadStatus.failed,
-          failure: failure,
-        );
+        state = DownloadState(status: DownloadStatus.failed, failure: failure);
         return null;
       },
     );

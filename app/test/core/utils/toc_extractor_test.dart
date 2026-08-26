@@ -54,13 +54,10 @@ void main() {
         'I stuffed a shirt or two into my old carpet-bag.',
       ]);
 
-      expect(
-        entries,
-        <TocEntry>[
-          const TocEntry(title: 'CHAPTER 1. Loomings.', paragraphIndex: 5),
-          const TocEntry(title: 'CHAPTER 2. The Carpet-Bag.', paragraphIndex: 7),
-        ],
-      );
+      expect(entries, <TocEntry>[
+        const TocEntry(title: 'CHAPTER 1. Loomings.', paragraphIndex: 5),
+        const TocEntry(title: 'CHAPTER 2. The Carpet-Bag.', paragraphIndex: 7),
+      ]);
     });
 
     test('ignores long paragraphs that merely start with a keyword', () {

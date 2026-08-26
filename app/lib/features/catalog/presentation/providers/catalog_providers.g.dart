@@ -48,6 +48,48 @@ final catalogRepositoryProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CatalogRepositoryRef = AutoDisposeProviderRef<CatalogRepository>;
+String _$localCatalogDataSourceHash() =>
+    r'98b2002b12113ef261cc90a0be9822c3ae69adfe';
+
+/// Offline catalog (SQLite FTS index) used for search and book detail.
+///
+/// Copied from [localCatalogDataSource].
+@ProviderFor(localCatalogDataSource)
+final localCatalogDataSourceProvider =
+    FutureProvider<LocalCatalogDataSource>.internal(
+      localCatalogDataSource,
+      name: r'localCatalogDataSourceProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$localCatalogDataSourceHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef LocalCatalogDataSourceRef = FutureProviderRef<LocalCatalogDataSource>;
+String _$catalogImportServiceHash() =>
+    r'c3e108a569a748bf3128f966fd6d1c4bda14464c';
+
+/// Service that downloads and indexes Project Gutenberg's catalog locally.
+///
+/// Copied from [catalogImportService].
+@ProviderFor(catalogImportService)
+final catalogImportServiceProvider =
+    FutureProvider<CatalogImportService>.internal(
+      catalogImportService,
+      name: r'catalogImportServiceProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$catalogImportServiceHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef CatalogImportServiceRef = FutureProviderRef<CatalogImportService>;
 String _$popularBooksHash() => r'6d0bfa55719442a1eecdefaff3b9629fab6767ed';
 
 /// Most popular titles for the Discover carousel.
@@ -225,9 +267,12 @@ class _BooksByTopicProviderElement
   String get topic => (origin as BooksByTopicProvider).topic;
 }
 
-String _$bookDetailHash() => r'5155db28952c4f1c78dbbf78f667c05e676d3299';
+String _$bookDetailHash() => r'f923846fd19e65d77e0f71d0e7226431249819ab';
 
 /// A single book's full metadata, keyed by Project Gutenberg [id].
+///
+/// Resolved from the local catalog first (offline, reliable), falling back to
+/// the remote Gutendex API only if the id isn't in the local index.
 ///
 /// Copied from [bookDetail].
 @ProviderFor(bookDetail)
@@ -235,14 +280,23 @@ const bookDetailProvider = BookDetailFamily();
 
 /// A single book's full metadata, keyed by Project Gutenberg [id].
 ///
+/// Resolved from the local catalog first (offline, reliable), falling back to
+/// the remote Gutendex API only if the id isn't in the local index.
+///
 /// Copied from [bookDetail].
 class BookDetailFamily extends Family<AsyncValue<BookSummary>> {
   /// A single book's full metadata, keyed by Project Gutenberg [id].
+  ///
+  /// Resolved from the local catalog first (offline, reliable), falling back to
+  /// the remote Gutendex API only if the id isn't in the local index.
   ///
   /// Copied from [bookDetail].
   const BookDetailFamily();
 
   /// A single book's full metadata, keyed by Project Gutenberg [id].
+  ///
+  /// Resolved from the local catalog first (offline, reliable), falling back to
+  /// the remote Gutendex API only if the id isn't in the local index.
   ///
   /// Copied from [bookDetail].
   BookDetailProvider call(int id) {
@@ -273,9 +327,15 @@ class BookDetailFamily extends Family<AsyncValue<BookSummary>> {
 
 /// A single book's full metadata, keyed by Project Gutenberg [id].
 ///
+/// Resolved from the local catalog first (offline, reliable), falling back to
+/// the remote Gutendex API only if the id isn't in the local index.
+///
 /// Copied from [bookDetail].
 class BookDetailProvider extends AutoDisposeFutureProvider<BookSummary> {
   /// A single book's full metadata, keyed by Project Gutenberg [id].
+  ///
+  /// Resolved from the local catalog first (offline, reliable), falling back to
+  /// the remote Gutendex API only if the id isn't in the local index.
   ///
   /// Copied from [bookDetail].
   BookDetailProvider(int id)
@@ -356,5 +416,25 @@ class _BookDetailProviderElement
   int get id => (origin as BookDetailProvider).id;
 }
 
+String _$catalogImportHash() => r'828ed8d3e2dfb7ece291d64e0259e6625110ebd8';
+
+/// Drives the one-time import of the catalog into the local index and exposes
+/// its progress. [ensure] is idempotent — a no-op once the catalog is ready or
+/// while an import is already running.
+///
+/// Copied from [CatalogImport].
+@ProviderFor(CatalogImport)
+final catalogImportProvider =
+    NotifierProvider<CatalogImport, CatalogImportProgress>.internal(
+      CatalogImport.new,
+      name: r'catalogImportProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$catalogImportHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$CatalogImport = Notifier<CatalogImportProgress>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

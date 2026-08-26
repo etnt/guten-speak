@@ -50,10 +50,43 @@ class NarrationSegmenter {
 
   /// Abbreviations whose trailing period must not end a sentence.
   static const Set<String> _abbreviations = <String>{
-    'mr', 'mrs', 'ms', 'dr', 'st', 'prof', 'sr', 'jr', 'vs', 'etc', 'mt',
-    'rev', 'hon', 'capt', 'col', 'gen', 'lt', 'sgt', 'no', 'fig', 'vol',
-    'esq', 'inc', 'ltd', 'co', 'jan', 'feb', 'mar', 'apr', 'jun', 'jul',
-    'aug', 'sep', 'sept', 'oct', 'nov', 'dec',
+    'mr',
+    'mrs',
+    'ms',
+    'dr',
+    'st',
+    'prof',
+    'sr',
+    'jr',
+    'vs',
+    'etc',
+    'mt',
+    'rev',
+    'hon',
+    'capt',
+    'col',
+    'gen',
+    'lt',
+    'sgt',
+    'no',
+    'fig',
+    'vol',
+    'esq',
+    'inc',
+    'ltd',
+    'co',
+    'jan',
+    'feb',
+    'mar',
+    'apr',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'sept',
+    'oct',
+    'nov',
+    'dec',
   };
 
   static final RegExp _lastWord = RegExp(r'([A-Za-z]+)$');
@@ -92,7 +125,8 @@ class NarrationSegmenter {
 
       final atEnd = j >= length;
       final boundary = atEnd || _isWhitespace(paragraph[j]);
-      if (boundary && !(ch == '.' && _endsWithAbbreviation(buffer.toString()))) {
+      if (boundary &&
+          !(ch == '.' && _endsWithAbbreviation(buffer.toString()))) {
         sentences.add(buffer.toString().trim());
         buffer.clear();
       }
