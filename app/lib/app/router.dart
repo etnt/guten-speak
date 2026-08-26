@@ -6,6 +6,7 @@ import '../features/catalog/presentation/screens/book_detail_screen.dart';
 import '../features/catalog/presentation/screens/catalog_home_screen.dart';
 import '../features/catalog/presentation/screens/search_screen.dart';
 import '../features/library/presentation/screens/library_screen.dart';
+import '../features/reader/presentation/screens/reader_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
 import 'scaffold_with_nav_bar.dart';
 
@@ -75,6 +76,17 @@ final appRouter = GoRouter(
           return const Scaffold(body: Center(child: Text('Invalid book id')));
         }
         return BookDetailScreen(bookId: id);
+      },
+    ),
+    GoRoute(
+      path: AppConstants.routeReader,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '');
+        if (id == null) {
+          return const Scaffold(body: Center(child: Text('Invalid book id')));
+        }
+        return ReaderScreen(bookId: id);
       },
     ),
   ],

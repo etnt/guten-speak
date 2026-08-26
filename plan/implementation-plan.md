@@ -291,28 +291,50 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
       app`.)_
 
 ### Phase B — Reader half (from guten-read Phases 3–5)
-- [ ] **Download manager** (Dio): progress, cancel, and resume/retry; primary
+- [x] **Download manager** (Dio): progress, cancel, and resume/retry; primary
       `.txt.utf-8` + fallback `https://www.gutenberg.org/ebooks/{id}.txt.utf-8`;
       atomic write to `books/{id}/` (temp file → rename); free-space precheck.
-- [ ] **`TextCleanerService`** + fixture corpus of real Gutenberg headers: strip
+      _(`BookDownloadDataSource` streams via a dedicated Dio with `Range: bytes=`
+      resume; `LibraryRepositoryImpl` writes to `download.part`, cleans, then
+      writes `text.txt.tmp` → rename. Fallback URL retried on non-cancel errors.
+      Free-space check is a best-effort probe-write (`_ensureWritable`) — a real
+      capacity check is deferred to Phase C's large model download.
+      `BookDownloadController` (Riverpod family by bookId) drives progress/cancel.)_
+- [x] **`TextCleanerService`** + fixture corpus of real Gutenberg headers: strip
       `*** START/END OF ...***`, legacy `*END*THE SMALL PRINT!`, BOM, and no-`***`
       variants; join hard-wrapped lines into paragraphs; unit-tested per fixture.
-- [ ] **`NarrationSegmenter`** — spell out the algorithm: split cleaned text into
+      _(`core/utils/text_cleaner_service.dart` + `text_cleaner_service_test.dart`
+      covering modern/legacy markers, BOM, no-marker, blank-line collapse.)_
+- [x] **`NarrationSegmenter`** — spell out the algorithm: split cleaned text into
       paragraphs (blank-line runs) → sentences (punctuation `. ! ?` with an
       abbreviation guard list: `Mr. Mrs. Dr. St. etc.` + initials); merge tiny
       fragments and hard-cap unit length (target ≈ 1–3 sentences / ~300 chars) so
       each unit synthesizes in one pass. Emit ordered units, each carrying its
       `paragraphIndex` (the shared reader/player position key); persist once.
-- [ ] **Reader screen**: lazy `ListView.builder` over paragraphs, paragraph-index
+      _(`core/utils/narration_segmenter.dart` — abbreviation + initial guard,
+      closer absorption, ≤3 sentences/300 chars, per-paragraph indexing; tested.
+      Persistence deferred to Phase D where the synth cache needs it.)_
+- [x] **Reader screen**: lazy `ListView.builder` over paragraphs, paragraph-index
       scroll persistence, themes (Light/Sepia/Dark/AMOLED), typography controls,
       auto-hiding controls.
-- [ ] **TOC extraction** from plain text (heuristic, best-effort): detect chapter
+      _(`features/reader/…/reader_screen.dart` — `ScrollablePositionedList`
+      (`scrollable_positioned_list`) for true index-precise resume/jump, with
+      a top-bar-aware `alignment` so a jumped-to heading lands below the overlaid
+      bar; debounced progress save to `reading_progress`, per-reader theme +
+      font-scale via `readerSettingsProvider` (SharedPreferences), auto-hiding
+      top/bottom bars.)_
+- [x] **TOC extraction** from plain text (heuristic, best-effort): detect chapter
       headings via blank-line-delimited short lines matching
       `CHAPTER|BOOK|PART` + roman/arabic numerals; degrade gracefully to
       "no chapters" when nothing matches.
-- [ ] **Library (`sqflite`)** — define the schema now: `books(id, title, author,
+      _(`core/utils/toc_extractor.dart` — keyword + bare-numeral heuristics,
+      surfaced as a TOC bottom sheet in the reader; tested.)_
+- [x] **Library (`sqflite`)** — define the schema now: `books(id, title, author,
       path, downloaded_at)`, `reading_progress(book_id, paragraph_index,
       updated_at)`, plus the storage manager (list/delete downloaded books).
+      _(`core/storage/app_database.dart` (v1, FK cascade) + `LibraryLocalDataSource`;
+      Library screen lists/opens/deletes downloaded books. Schema adds
+      `language`/`cover_url` to `books` for offline display.)_
 
 ### Phase C — Narration core (port PoC)
 - [ ] Port `tts_service.dart`, `model_manager.dart`, WAV I/O into `core/tts/`

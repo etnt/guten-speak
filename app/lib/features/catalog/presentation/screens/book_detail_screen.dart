@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/widgets/state_views.dart';
+import '../../../library/domain/entities/download_state.dart';
+import '../../../library/presentation/providers/library_providers.dart';
 import '../../data/models/book_summary.dart';
 import '../providers/catalog_providers.dart';
 import '../widgets/book_cover.dart';
 
-/// Book details: cover, metadata, subjects and available formats. Download and
-/// reading actions are wired in Phase 3.
+/// Book details: cover, metadata, subjects and available formats, plus download
+/// and reading actions.
 class BookDetailScreen extends ConsumerWidget {
   const BookDetailScreen({required this.bookId, super.key});
 
@@ -78,29 +83,7 @@ class _BookDetailContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: book.hasReadableText
-                    ? () => _notImplemented(context, 'Reading')
-                    : null,
-                icon: const Icon(Icons.menu_book),
-                label: const Text('Read now'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: book.hasReadableText
-                    ? () => _notImplemented(context, 'Download')
-                    : null,
-                icon: const Icon(Icons.download),
-                label: const Text('Download'),
-              ),
-            ),
-          ],
-        ),
+        _ActionButtons(book: book),
         if (!book.hasReadableText) ...[
           const SizedBox(height: 8),
           Text(
@@ -125,10 +108,94 @@ class _BookDetailContent extends StatelessWidget {
       ],
     );
   }
+}
 
-  void _notImplemented(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature will be available in a later update.')),
+/// Read / download actions that react to the per-book download state.
+class _ActionButtons extends ConsumerWidget {
+  const _ActionButtons({required this.book});
+
+  final BookSummary book;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final download = ref.watch(bookDownloadControllerProvider(book.id));
+    final isDownloaded =
+        ref.watch(libraryBookProvider(book.id)).valueOrNull != null;
+    final controller = ref.read(
+      bookDownloadControllerProvider(book.id).notifier,
     );
+
+    if (download.isDownloading) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LinearProgressIndicator(
+            value: download.progress >= 0 ? download.progress : null,
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: controller.cancel,
+            icon: const Icon(Icons.close),
+            label: const Text('Cancel download'),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: book.hasReadableText
+                    ? () => _read(context, ref, isDownloaded: isDownloaded)
+                    : null,
+                icon: const Icon(Icons.menu_book),
+                label: const Text('Read now'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: !book.hasReadableText || isDownloaded
+                    ? null
+                    : () => unawaited(controller.start(book)),
+                icon: Icon(isDownloaded ? Icons.check : Icons.download),
+                label: Text(isDownloaded ? 'Downloaded' : 'Download'),
+              ),
+            ),
+          ],
+        ),
+        if (download.status == DownloadStatus.failed &&
+            download.failure != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            download.failure!.message,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _read(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool isDownloaded,
+  }) async {
+    if (isDownloaded) {
+      unawaited(context.push('/read/${book.id}'));
+      return;
+    }
+    final result = await ref
+        .read(bookDownloadControllerProvider(book.id).notifier)
+        .start(book);
+    if (result != null && context.mounted) {
+      unawaited(context.push('/read/${book.id}'));
+    }
   }
 }
