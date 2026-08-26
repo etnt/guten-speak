@@ -1,0 +1,39 @@
+push graphic-context
+
+# ---- Open book (cream pages) ----
+fill '#EDE0D9'
+stroke none
+# left page
+path 'M 512 405 L 190 478 L 200 662 L 512 720 Z'
+# right page
+path 'M 512 405 L 834 478 L 824 662 L 512 720 Z'
+
+# center fold / spine
+stroke '#191716'
+stroke-width 8
+stroke-linecap round
+line 512 405 512 720
+
+# ---- Page text lines (terracotta) ----
+stroke '#8D5B4C'
+stroke-width 12
+stroke-linecap round
+# left page lines
+line 258 512 470 486
+line 250 556 470 532
+line 246 600 470 578
+# right page lines
+line 554 486 766 512
+line 554 532 774 556
+line 554 578 778 600
+
+# ---- Sound waves (terracotta arcs, opening right) ----
+fill none
+stroke '#8D5B4C'
+stroke-width 26
+stroke-linecap round
+path 'M 754.4 330.8 A 60 60 0 0 1 754.4 429.2'
+path 'M 783.1 289.9 A 110 110 0 0 1 783.1 470.1'
+path 'M 811.8 248.9 A 160 160 0 0 1 811.8 511.1'
+
+pop graphic-context

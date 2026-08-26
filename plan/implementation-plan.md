@@ -262,26 +262,33 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
 ```
 
 ### Phase A — Scaffold
-- [ ] Copy `guten-read` into the `guten-speak` app module and re-init git history
+- [x] Copy `guten-read` into the `guten-speak` app module and re-init git history
       (independent from guten-read); update `pubspec.yaml` `name:` to
       `guten_speak` and fix all `package:guten_read/...` imports.
-- [ ] **Android rename** to `se.kruskakli.guten_speak`: `applicationId` **and**
+- [x] **Android rename** to `se.kruskakli.guten_speak`: `applicationId` **and**
       `namespace` in `app/build.gradle(.kts)`, `AndroidManifest` `android:label`,
       move `MainActivity.kt` to the `se/kruskakli/guten_speak/` folder + update its
       `package` line.
-- [ ] **iOS rename** to `se.kruskakli.gutenSpeak`: `PRODUCT_BUNDLE_IDENTIFIER`
+- [x] **iOS rename** to `se.kruskakli.gutenSpeak`: `PRODUCT_BUNDLE_IDENTIFIER`
       (Runner target) + `CFBundleDisplayName` = "Guten-Speak".
-- [ ] App label + launcher icon + display name (Android/iOS); update `README`.
-- [ ] Merge dependencies: add `sherpa_onnx`, `file_picker`, `archive`, `http`,
+- [x] App label + launcher icon + display name (Android/iOS); update `README`.
+      _(custom book + sound-wave launcher icon generated via
+      `flutter_launcher_icons` — adaptive (Android) + all iOS sizes; source art
+      under `app/assets/icon/`.)_
+- [x] Merge dependencies: add `sherpa_onnx`, `file_picker`, `archive`, `http`,
       `just_audio`, `audio_service`; remove `permission_handler`. `flutter pub get`
       + `build_runner build` to confirm the scaffold still compiles.
-- [ ] Carry the PoC's **`compileSdk = 37` + `android-37` symlink** workaround
+- [x] Carry the PoC's **`compileSdk = 37` + `android-37` symlink** workaround
       (PoC §10) and set `minSdk`/`targetSdk` so `sherpa_onnx` + `audio_service`
       both load; verify an empty app boots on the Pixel 10 Pro.
-- [ ] **App theme:** `ThemeMode` provider (Riverpod) persisted via
+      _(compileSdk 37 set; app boots on-device (Pixel 10 Pro, wireless debug) —
+      `sherpa_onnx` + `audio_service` native libs load and the catalog renders.)_
+- [x] **App theme:** `ThemeMode` provider (Riverpod) persisted via
       `shared_preferences`, wired into `MaterialApp.router`
       (`theme`/`darkTheme`/`themeMode`), **default dark** on first launch.
-- [ ] Keep guten-read's analysis options + GitHub Actions (`analyze` + `test`).
+- [x] Keep guten-read's analysis options + GitHub Actions (`analyze` + `test`).
+      _(CI moved to repo-root `.github/workflows/ci.yml` with `working-directory:
+      app`.)_
 
 ### Phase B — Reader half (from guten-read Phases 3–5)
 - [ ] **Download manager** (Dio): progress, cancel, and resume/retry; primary
