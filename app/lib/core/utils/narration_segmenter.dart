@@ -91,6 +91,10 @@ class NarrationSegmenter {
 
   static final RegExp _lastWord = RegExp(r'([A-Za-z]+)$');
 
+  /// Matches any letter or digit — i.e. something a voice can actually
+  /// pronounce.
+  static final RegExp _speakable = RegExp(r'[\p{L}\p{N}]', unicode: true);
+
   /// Segments [paragraphs] (already split by [TextCleanerService]) into units.
   List<NarrationUnit> segmentParagraphs(List<String> paragraphs) {
     final units = <NarrationUnit>[];
@@ -98,6 +102,9 @@ class NarrationSegmenter {
     for (var p = 0; p < paragraphs.length; p++) {
       final sentences = _splitSentences(paragraphs[p]);
       for (final chunk in _chunkSentences(sentences)) {
+        // Drop decorative scene-break dividers (e.g. `* * * * *`, `----`): they
+        // have no letters or digits and would be synthesised as noise.
+        if (!_speakable.hasMatch(chunk)) continue;
         units.add(
           NarrationUnit(index: unitIndex++, paragraphIndex: p, text: chunk),
         );

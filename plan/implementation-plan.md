@@ -462,19 +462,88 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
 
 
 ### Phase E — Player
-- [ ] `audio_service` background handler + `just_audio`; feed cached per-unit
+- [x] `audio_service` background handler + `just_audio`; feed cached per-unit
       clips as a `ConcatenatingAudioSource` (playlist) indexed by unit.
-- [ ] **Not-ready handling**: when the next unit isn't synthesized yet, enter a
+      _(Done, with a deliberate deviation. The rolling-window cache (Phase D)
+      only keeps `[playHead-1, playHead+3]` on disk, so a whole-book
+      `ConcatenatingAudioSource` is infeasible — its sources would be evicted out
+      from under it. Instead `NarrationAudioHandler` drives a **unit-sequential**
+      player: it loads one unit's WAV, and on `just_audio`'s `completed` it
+      advances to the next unit. This is a *virtual* playlist indexed by unit,
+      and it gives the "never play past the synthesized frontier" guarantee for
+      free. Lives in the `audio_service` `BaseAudioHandler` so playback survives
+      backgrounding and drives the media notification.)_
+- [x] **Not-ready handling**: when the next unit isn't synthesized yet, enter a
       `buffering` state (pause + spinner) and auto-resume when the scheduler
       delivers it — the player never plays past the synthesized frontier.
+      _(Done. `_playCurrent` checks `SynthCache.cachedPath`; on a miss it emits
+      `buffering`, nudges `scheduler.seekTo(currentIndex)`, and returns. The
+      handler listens to the scheduler's `events` stream and, when the awaited
+      unit reports `ready`, resumes playback automatically (respecting the user's
+      play/pause intent). A `failed` event surfaces an `error` state.)_
 - [ ] **Gapless / clicks**: validate concatenation seams (trim leading/trailing
       silence, small crossfade or pre-concatenate the window) — see §9 risk.
-- [ ] Audio focus + ducking (pause on call/other audio), lock-screen /
+      _(Deferred. With the unit-sequential player there is a brief load between
+      clips rather than a concatenation seam; per-unit silence-trim / crossfade
+      polish is left for a later pass once measured on-device. Edge-silence trim
+      + short raised-cosine fades are now applied per clip (`trimAndFadeClip`)
+      to kill inter-unit clicks.)_
+- [x] **Head-start pre-render before playback (Option 1)**: on-device synthesis
+      measured **slower than real time under playback contention (RTF ≈
+      1.2–2.0)**, so streaming/real-time playback stalls per unit. The player now
+      pre-renders a bounded **head start** into the cache before playback begins,
+      showing a "Preparing narration" card (progress + rough ETA + "Start
+      now"/"Cancel"), then keeps topping up the lead as the play head advances.
+      This is a *bounded* buffer, not a whole-book pre-cache — disk stays within
+      the rolling window. Refinements:
+  - [x] **User-configurable head-start size**: a "Head start" +/− selector
+        (1–40 sections, default 8) on the player, read into `load(prepLead:)`
+        for the session; `LookAheadScheduler.lookAhead` is now mutable so the
+        size can also change between stretches.
+  - [x] **Clean catch-up (no noise)**: when playback reaches the end of the
+        prepared lead and the next unit isn't rendered, the player **stops at
+        once** (status `awaitingHeadStart`) instead of playing unrendered noise,
+        and re-shows the head-start selector in a "Ready to continue" card so the
+        user picks the next batch size before `continueNarration(prepLead)`
+        rebuilds the lead from the current position.
+  - [x] **Divider filtering**: decorative scene-break lines with no letters or
+        digits (e.g. `* * * * *`, `----`) are dropped during segmentation so
+        they're never synthesised into noise.
+
+- [x] Audio focus + ducking (pause on call/other audio), lock-screen /
       notification actions (play/pause, skip ±unit), iOS background-audio
       capability (`UIBackgroundModes: audio`).
-- [ ] Player screen + persistent mini-player above the nav bar; skip/seek/speed.
-- [ ] Voice picker bound to the library; re-narrate re-renders the cache.
-- [ ] Resume `(bookId, unitIndex, offset, voiceId)` persisted + restored.
+      _(Done for Android. Audio focus/ducking comes from `just_audio`'s default
+      `AudioSession` handling. `_broadcast` publishes a `PlaybackState` with
+      `skipToPrevious` / play-pause / `skipToNext` controls (compact indices
+      0,1,2) and a mapped `AudioProcessingState`, so the notification/lock-screen
+      controls work. Manifest wires the `com.ryanheise.audioservice.AudioService`
+      foreground service (`foregroundServiceType="mediaPlayback"`) + the
+      `MediaButtonReceiver`, plus `FOREGROUND_SERVICE`,
+      `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `WAKE_LOCK` permissions. iOS
+      background-audio is not wired yet — Android-first.)_
+- [x] Player screen + persistent mini-player above the nav bar; skip/seek/speed.
+      _(Done. `NarrationScreen` keeps the Phase C consent/download gate, then
+      shows a player card: unit x/N + progress bar, the current line, big
+      play/pause (spinner while buffering), skip ±unit, and a 0.75×–2× speed
+      picker. `NarrationMiniPlayer` watches `narrationPlaybackProvider` and, when
+      a book is active, renders a now-playing bar above the bottom nav
+      (`ScaffoldWithNavBar`) with title/subtitle, play/pause, and tap-to-open the
+      full player.)_
+- [x] Voice picker bound to the library; re-narrate re-renders the cache.
+      _(Done. The player's voice dropdown is bound to `voicesControllerProvider` /
+      `selectedVoiceProvider`. Pressing play with a different voice calls
+      `handler.load(...)` with the new voice, which spins up a fresh scheduler
+      keyed by `(bookId, voiceId)`; the cache is per-voice so the new voice
+      renders its own clips.)_
+- [x] Resume `(bookId, unitIndex, offset, voiceId)` persisted + restored.
+      _(Done. New `narration_progress` table (one row per book, `book_id` PK FKs
+      `books ON DELETE CASCADE`; DB `version` bumped 3→4 with an `_onUpgrade`
+      migration) stores `(voice_id, unit_index, position_ms, updated_at)`.
+      `NarrationProgressDataSource` reads/writes it; the handler saves on
+      pause/advance/skip/stop and, in `load`, restores `unitIndex`+`positionMs`
+      only when the saved `voice_id` matches the requested voice.)_
+
 
 ### Phase F — Reader ↔ narration sync (stretch)
 - [ ] Highlight current unit + auto-scroll during playback (drive off the shared
@@ -532,6 +601,17 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
   Confirm synthesis throughput + peak RAM (fp32 `lm_main.onnx` = 302 MB; expect
   ≥ ~0.5 GB in the worker isolate) on a real mid-range arm64 device. If too slow,
   offer the int8 model and/or fewer Steps as a "Fast" preset.
+  _(Update: on a Pixel 10 Pro, **real** RTF during simultaneous playback is
+  1.2–2.0× (not the isolated 1.12×) — the per-frame LM pass dominates, so
+  `numSteps` barely moves it. This is why playback is pre-rendered (head start,
+  Phase E) rather than streamed.)_
+- **Option 2 — fast non-cloning on-device voice (escape hatch).** If the
+  pre-render wait or catch-up pauses prove unacceptable, swap PocketTTS zero-shot
+  cloning for a standard sherpa-onnx model (VITS / Matcha / Kokoro) that runs at
+  **RTF ≪ 1** for true real-time, gapless, low-noise playback. Trade-off: a fixed
+  set of voices instead of "clone this narrator." Could ship as a user-selectable
+  "Fast voices (no cloning)" mode alongside the cloning path. Worth prototyping if
+  Option 1's UX isn't good enough.
 - **Cached-audio storage strategy.** WAV is ~170 MB/hour at 24 kHz — decide
   rolling-window vs. compressed (AAC/Opus) encoding, and where encoding runs.
 - **Gapless playback.** Concatenating per-unit clips without clicks/gaps in

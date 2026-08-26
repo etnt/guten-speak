@@ -12,7 +12,7 @@ part 'app_database.g.dart';
 /// not in SQLite.
 abstract final class Db {
   static const String fileName = 'guten_speak.db';
-  static const int version = 3;
+  static const int version = 4;
 
   // catalog (local search index of pg_catalog.csv) ---------------------
   static const String catalog = 'catalog';
@@ -54,6 +54,14 @@ abstract final class Db {
   static const String synthFile = 'file';
   static const String synthBytes = 'bytes';
   static const String synthCreatedAt = 'created_at';
+
+  // narration_progress (resume point per book) --------------------------
+  static const String narrationProgress = 'narration_progress';
+  static const String narrationBookId = 'book_id';
+  static const String narrationVoiceId = 'voice_id';
+  static const String narrationUnitIndex = 'unit_index';
+  static const String narrationPositionMs = 'position_ms';
+  static const String narrationUpdatedAt = 'updated_at';
 }
 
 /// Opens (creating on first run) the shared metadata database and keeps it open
@@ -99,6 +107,7 @@ Future<void> _onCreate(Database db, int version) async {
 
   await _createCatalogTables(db);
   await _createSynthCacheTable(db);
+  await _createNarrationProgressTable(db);
 }
 
 Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -107,6 +116,9 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   }
   if (oldVersion < 3) {
     await _createSynthCacheTable(db);
+  }
+  if (oldVersion < 4) {
+    await _createNarrationProgressTable(db);
   }
 }
 
@@ -151,6 +163,22 @@ Future<void> _createSynthCacheTable(Database db) async {
       ${Db.synthBytes} INTEGER NOT NULL,
       ${Db.synthCreatedAt} INTEGER NOT NULL,
       PRIMARY KEY (${Db.synthBookId}, ${Db.synthVoiceId}, ${Db.synthUnitIndex})
+    )
+  ''');
+}
+
+/// Creates the narration resume table: one row per book holding the last
+/// narrated `(voice_id, unit_index, position_ms)` so listening resumes where it
+/// left off. Cascade-deletes with the book.
+Future<void> _createNarrationProgressTable(Database db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS ${Db.narrationProgress} (
+      ${Db.narrationBookId} INTEGER PRIMARY KEY
+        REFERENCES ${Db.books} (${Db.bookId}) ON DELETE CASCADE,
+      ${Db.narrationVoiceId} TEXT NOT NULL,
+      ${Db.narrationUnitIndex} INTEGER NOT NULL,
+      ${Db.narrationPositionMs} INTEGER NOT NULL,
+      ${Db.narrationUpdatedAt} INTEGER NOT NULL
     )
   ''');
 }

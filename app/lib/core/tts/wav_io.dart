@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 /// Decoded mono PCM audio as normalized floats in [-1, 1].
@@ -182,3 +183,53 @@ Float32List conditionReference(Float32List samples) {
 
 String _tag(Uint8List bytes, int offset) =>
     String.fromCharCodes(bytes.sublist(offset, offset + 4));
+
+/// Cleans up a freshly generated narration clip so back-to-back units join
+/// without an audible click or breath "cough" at the seam.
+///
+/// PocketTTS emits each unit as an isolated clip that can start or end on a
+/// non-zero sample (a hard step), and often carries a little dead air or a
+/// breath transient at the edges. Playing those clips one after another makes
+/// the discontinuity audible between sentences. We (1) trim leading/trailing
+/// near-silence (keeping a short pad so onsets aren't clipped) and (2) apply
+/// short raised-cosine fades at both edges so every clip starts and ends at
+/// zero amplitude.
+Float32List trimAndFadeClip(Float32List samples, int sampleRate) {
+  if (samples.isEmpty || sampleRate <= 0) return samples;
+
+  var peak = 0.0;
+  for (final s in samples) {
+    final a = s.abs();
+    if (a > peak) peak = a;
+  }
+  if (peak <= 1e-4) return samples; // effectively silent; leave it be
+
+  final gate = peak * 0.02; // -34 dB relative to the clip peak
+  var start = 0;
+  while (start < samples.length && samples[start].abs() < gate) {
+    start++;
+  }
+  var end = samples.length - 1;
+  while (end > start && samples[end].abs() < gate) {
+    end--;
+  }
+  if (end <= start) return samples;
+
+  // Keep ~5 ms of pad on each side so we never clip a speech onset/offset.
+  final pad = (sampleRate * 0.005).round();
+  start = math.max(0, start - pad);
+  end = math.min(samples.length - 1, end + pad);
+
+  final trimmed = Float32List.fromList(
+    Float32List.sublistView(samples, start, end + 1),
+  );
+
+  // ~8 ms raised-cosine fades remove the boundary click between clips.
+  final fade = math.min((sampleRate * 0.008).round(), trimmed.length ~/ 2);
+  for (var i = 0; i < fade; i++) {
+    final g = 0.5 * (1 - math.cos(math.pi * i / fade));
+    trimmed[i] *= g;
+    trimmed[trimmed.length - 1 - i] *= g;
+  }
+  return trimmed;
+}

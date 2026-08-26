@@ -58,8 +58,9 @@ class LookAheadScheduler {
   final NarrationAudioCache cache;
   final SynthesizeUnit synthesize;
 
-  /// How many units ahead of the play head to keep rendered.
-  final int lookAhead;
+  /// How many units ahead of the play head to keep rendered. Mutable so the
+  /// user can change the head-start size between stretches (see [setLookAhead]).
+  int lookAhead;
 
   /// How many already-played units behind the head to keep before eviction.
   final int behind;
@@ -85,6 +86,14 @@ class LookAheadScheduler {
 
   /// Begins (or resumes) rendering ahead of the current play head.
   Future<void> start() => _pump();
+
+  /// Changes how many units to keep rendered ahead of the play head and
+  /// re-pumps so a larger window starts filling immediately.
+  void setLookAhead(int value) {
+    if (_disposed) return;
+    lookAhead = value < 0 ? 0 : value;
+    unawaited(_pump());
+  }
 
   /// Moves the play head (a seek) and re-plans rendering around the new
   /// position. Cheap and safe to call repeatedly.

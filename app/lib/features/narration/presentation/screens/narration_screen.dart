@@ -2,48 +2,31 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
 
-import '../../../../core/tts/tts_service.dart';
 import '../../../../core/utils/narration_segmenter.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../reader/presentation/providers/reader_providers.dart';
 import '../../../voices/domain/entities/voice.dart';
 import '../../../voices/presentation/providers/voice_providers.dart';
+import '../../domain/entities/narration_playback.dart';
 import '../../domain/entities/narration_prep_progress.dart';
+import '../providers/narration_player_providers.dart';
 import '../providers/tts_providers.dart';
 
-/// The opt-in narration entry point (Phase C).
+/// The narration player screen.
 ///
-/// Gates the one-time ~470 MB model download behind explicit consent, then runs
-/// an end-to-end smoke test: segment the book, clone the selected voice, and
-/// synthesize + play the first narration unit. The full background player is a
-/// later phase.
-class NarrationScreen extends ConsumerStatefulWidget {
+/// Gates the one-time ~470 MB voice-model download behind explicit consent,
+/// then drives the background player: pick a narrator voice, play/pause, skip
+/// units, adjust speed, and follow the current line. Playback continues in the
+/// background and is controllable from the media notification.
+class NarrationScreen extends ConsumerWidget {
   const NarrationScreen({required this.bookId, super.key});
 
   final int bookId;
 
   @override
-  ConsumerState<NarrationScreen> createState() => _NarrationScreenState();
-}
-
-class _NarrationScreenState extends ConsumerState<NarrationScreen> {
-  final AudioPlayer _player = AudioPlayer();
-  bool _synthesizing = false;
-  SpeakResult? _lastResult;
-  String? _synthError;
-
-  @override
-  void dispose() {
-    unawaited(_player.dispose());
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final contentAsync = ref.watch(readerContentProvider(widget.bookId));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final contentAsync = ref.watch(readerContentProvider(bookId));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Listen')),
@@ -65,71 +48,27 @@ class _NarrationScreenState extends ConsumerState<NarrationScreen> {
             );
           }
           return _NarrationBody(
+            bookId: bookId,
             bookTitle: content.book.title,
-            firstUnit: units.first.text,
-            player: _player,
-            synthesizing: _synthesizing,
-            lastResult: _lastResult,
-            synthError: _synthError,
-            onSynthesize: (voice) => _synthesizeFirstUnit(units.first, voice),
+            units: units,
           );
         },
       ),
     );
   }
-
-  Future<void> _synthesizeFirstUnit(NarrationUnit unit, Voice voice) async {
-    setState(() {
-      _synthesizing = true;
-      _synthError = null;
-    });
-    try {
-      final tempDir = await getTemporaryDirectory();
-      final outPath =
-          '${tempDir.path}/narration_smoke_${DateTime.now().millisecondsSinceEpoch}.wav';
-      final result = await ref
-          .read(narrationEngineProvider.notifier)
-          .synthesize(
-            text: unit.text,
-            referenceWavPath: voice.wavPath,
-            outputWavPath: outPath,
-          );
-      await _player.setFilePath(outPath);
-      unawaited(_player.play());
-      if (mounted) {
-        setState(() => _lastResult = result);
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(() => _synthError = error.toString());
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _synthesizing = false);
-      }
-    }
-  }
 }
 
-/// The prepared/preparing UI once the book's text is loaded.
+/// The player UI once the book's text is segmented into units.
 class _NarrationBody extends ConsumerWidget {
   const _NarrationBody({
+    required this.bookId,
     required this.bookTitle,
-    required this.firstUnit,
-    required this.player,
-    required this.synthesizing,
-    required this.lastResult,
-    required this.synthError,
-    required this.onSynthesize,
+    required this.units,
   });
 
+  final int bookId;
   final String bookTitle;
-  final String firstUnit;
-  final AudioPlayer player;
-  final bool synthesizing;
-  final SpeakResult? lastResult;
-  final String? synthError;
-  final ValueChanged<Voice> onSynthesize;
+  final List<NarrationUnit> units;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -137,6 +76,8 @@ class _NarrationBody extends ConsumerWidget {
     final prep = ref.watch(narrationEngineProvider);
     final voicesAsync = ref.watch(voicesControllerProvider);
     final selected = ref.watch(selectedVoiceProvider);
+    final voices = voicesAsync.valueOrNull ?? const <Voice>[];
+    final activeVoice = selected ?? (voices.isEmpty ? null : voices.first);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -174,21 +115,15 @@ class _NarrationBody extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
 
-        // Model gate / synthesis.
+        // Model gate / player.
         if (!prep.isReady)
           _PrepareCard(prep: prep)
         else
-          _SmokeTestCard(
-            firstUnit: firstUnit,
-            player: player,
-            synthesizing: synthesizing,
-            lastResult: lastResult,
-            synthError: synthError,
-            onSynthesize: () {
-              final voices = voicesAsync.valueOrNull ?? const <Voice>[];
-              if (voices.isEmpty) return;
-              onSynthesize(selected ?? voices.first);
-            },
+          _PlayerCard(
+            bookId: bookId,
+            bookTitle: bookTitle,
+            units: units,
+            voice: activeVoice,
           ),
       ],
     );
@@ -300,68 +235,128 @@ class _PrepareCard extends ConsumerWidget {
   }
 }
 
-/// The end-to-end smoke test: synthesize + play the first narration unit.
-class _SmokeTestCard extends StatelessWidget {
-  const _SmokeTestCard({
-    required this.firstUnit,
-    required this.player,
-    required this.synthesizing,
-    required this.lastResult,
-    required this.synthError,
-    required this.onSynthesize,
+/// The main player controls once the model is ready.
+class _PlayerCard extends ConsumerWidget {
+  const _PlayerCard({
+    required this.bookId,
+    required this.bookTitle,
+    required this.units,
+    required this.voice,
   });
 
-  final String firstUnit;
-  final AudioPlayer player;
-  final bool synthesizing;
-  final SpeakResult? lastResult;
-  final String? synthError;
-  final VoidCallback onSynthesize;
+  final int bookId;
+  final String bookTitle;
+  final List<NarrationUnit> units;
+  final Voice? voice;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final voice = this.voice;
+    final playback =
+        ref.watch(narrationPlaybackProvider).valueOrNull ??
+        const NarrationPlaybackState();
+
+    final isCurrent =
+        voice != null &&
+        playback.bookId == bookId &&
+        playback.voiceId == voice.id;
+    final unitCount = units.length;
+    final unitIndex = isCurrent ? playback.unitIndex : 0;
+    final currentText = isCurrent && playback.currentText.isNotEmpty
+        ? playback.currentText
+        : units.first.text;
+    final isPlaying = isCurrent && playback.isPlaying;
+    final isBuffering = isCurrent && playback.isBuffering;
+
+    if (isCurrent && playback.isPreparing) {
+      return _PreparingCard(playback: playback);
+    }
+
+    if (isCurrent && playback.isAwaitingHeadStart) {
+      return _ContinueCard(units: units, unitIndex: playback.unitIndex);
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Preview narration', style: theme.textTheme.titleMedium),
+            Row(
+              children: [
+                Text(
+                  'Unit ${unitIndex + 1} of $unitCount',
+                  style: theme.textTheme.labelLarge,
+                ),
+                const Spacer(),
+                _SpeedButton(
+                  speed: isCurrent ? playback.speed : 1.0,
+                  onChanged: voice == null
+                      ? null
+                      : (speed) => unawaited(_setSpeed(ref, speed)),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: unitCount == 0 ? 0 : (unitIndex + 1) / unitCount,
+            ),
+            const SizedBox(height: 16),
             Text(
-              firstUnit,
-              style: theme.textTheme.bodyMedium,
-              maxLines: 4,
+              currentText,
+              style: theme.textTheme.bodyLarge,
+              maxLines: 6,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: synthesizing ? null : onSynthesize,
-              icon: synthesizing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.play_arrow),
-              label: Text(
-                synthesizing ? 'Synthesizing…' : 'Synthesize & play first line',
+            if (!isCurrent) ...[
+              const _HeadStartSelector(),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  iconSize: 36,
+                  onPressed: voice == null || !isCurrent
+                      ? null
+                      : () => unawaited(_skipPrevious(ref)),
+                  icon: const Icon(Icons.skip_previous),
+                ),
+                const SizedBox(width: 12),
+                _PlayPauseButton(
+                  isPlaying: isPlaying,
+                  isBuffering: isBuffering,
+                  onPressed: voice == null
+                      ? null
+                      : () => unawaited(
+                          _togglePlay(ref, playback, voice, isCurrent),
+                        ),
+                ),
+                const SizedBox(width: 12),
+                IconButton(
+                  iconSize: 36,
+                  onPressed: voice == null || !isCurrent
+                      ? null
+                      : () => unawaited(_skipNext(ref)),
+                  icon: const Icon(Icons.skip_next),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Narration is generated on your device. A short head start is '
+              'prepared before playback so it runs smoothly.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            if (lastResult != null) ...[
+            if (playback.status == NarrationStatus.error &&
+                playback.error != null) ...[
               const SizedBox(height: 12),
               Text(
-                'Generated ${lastResult!.audioSeconds.toStringAsFixed(1)}s of '
-                'audio in ${lastResult!.generateMillis} ms '
-                '(RTF ${lastResult!.realTimeFactor.toStringAsFixed(2)}×).',
-                style: theme.textTheme.bodySmall,
-              ),
-            ],
-            if (synthError != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                synthError!,
+                playback.error!,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
                 ),
@@ -370,6 +365,286 @@ class _SmokeTestCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _togglePlay(
+    WidgetRef ref,
+    NarrationPlaybackState playback,
+    Voice voice,
+    bool isCurrent,
+  ) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    if (isCurrent && playback.isPlaying) {
+      await handler.pause();
+    } else if (isCurrent) {
+      await handler.play();
+    } else {
+      await handler.load(
+        bookId: bookId,
+        bookTitle: bookTitle,
+        voiceId: voice.id,
+        voiceName: voice.name,
+        voiceWavPath: voice.wavPath,
+        units: units,
+        prepLead: ref.read(headStartChunksProvider),
+      );
+    }
+  }
+
+  Future<void> _skipNext(WidgetRef ref) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.skipToNext();
+  }
+
+  Future<void> _skipPrevious(WidgetRef ref) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.skipToPrevious();
+  }
+
+  Future<void> _setSpeed(WidgetRef ref, double speed) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.setSpeed(speed);
+  }
+}
+
+/// Lets the user choose how many "head start" sections to pre-render before
+/// playback begins (larger = longer initial wait, smoother listening).
+class _HeadStartSelector extends ConsumerWidget {
+  const _HeadStartSelector();
+
+  static const int _min = 1;
+  static const int _max = 40;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final chunks = ref.watch(headStartChunksProvider);
+    final controller = ref.read(headStartChunksProvider.notifier);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text('Head start', style: theme.textTheme.labelLarge),
+            const Spacer(),
+            IconButton(
+              onPressed: chunks > _min
+                  ? () => controller.state = chunks - 1
+                  : null,
+              icon: const Icon(Icons.remove_circle_outline),
+            ),
+            Text('$chunks', style: theme.textTheme.titleMedium),
+            IconButton(
+              onPressed: chunks < _max
+                  ? () => controller.state = chunks + 1
+                  : null,
+              icon: const Icon(Icons.add_circle_outline),
+            ),
+          ],
+        ),
+        Text(
+          'Sections prepared before playback starts. More means a longer wait '
+          'now but smoother, longer listening before it needs to catch up.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Shown after the prepared head start has played out: playback is stopped
+/// (no noise) and the user can adjust how much to prepare next before
+/// continuing.
+class _ContinueCard extends ConsumerWidget {
+  const _ContinueCard({required this.units, required this.unitIndex});
+
+  final List<NarrationUnit> units;
+  final int unitIndex;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Ready to continue', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              'The prepared head start has played out (up to unit '
+              '${unitIndex + 1} of ${units.length}). Choose how much to '
+              'prepare next, then continue.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            const _HeadStartSelector(),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => unawaited(_continue(ref)),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Prepare & continue'),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => unawaited(_stop(ref)),
+              icon: const Icon(Icons.close),
+              label: const Text('Stop'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _continue(WidgetRef ref) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.continueNarration(ref.read(headStartChunksProvider));
+  }
+
+  Future<void> _stop(WidgetRef ref) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.stop();
+  }
+}
+
+/// Shows head-start preparation progress before playback begins.
+class _PreparingCard extends ConsumerWidget {
+  const _PreparingCard({required this.playback});
+
+  final NarrationPlaybackState playback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final eta = playback.etaSeconds;
+    final String etaText;
+    if (eta == null) {
+      etaText = 'estimating…';
+    } else if (eta >= 60) {
+      etaText = '~${(eta / 60).ceil()} min left';
+    } else {
+      etaText = '~$eta s left';
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Preparing narration', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              'Your device is rendering a head start so playback runs smoothly '
+              'without pauses. This happens once for this stretch of the book — '
+              'you can start now, but a very long uninterrupted listen may hit a '
+              'brief catch-up pause.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: playback.prepTarget == 0 ? null : playback.prepFraction,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${playback.preparedCount} of ${playback.prepTarget} sections '
+              'ready · $etaText',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => unawaited(_startNow(ref)),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Start now'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () => unawaited(_cancel(ref)),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Cancel'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startNow(WidgetRef ref) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.startPlaybackNow();
+  }
+
+  Future<void> _cancel(WidgetRef ref) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.stop();
+  }
+}
+
+/// The round play/pause button, showing a spinner while buffering.
+class _PlayPauseButton extends StatelessWidget {
+  const _PlayPauseButton({
+    required this.isPlaying,
+    required this.isBuffering,
+    required this.onPressed,
+  });
+
+  final bool isPlaying;
+  final bool isBuffering;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        shape: const CircleBorder(),
+        padding: const EdgeInsets.all(20),
+      ),
+      child: isBuffering
+          ? const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(isPlaying ? Icons.pause : Icons.play_arrow, size: 28),
+    );
+  }
+}
+
+/// A playback-speed picker (0.75×–2×).
+class _SpeedButton extends StatelessWidget {
+  const _SpeedButton({required this.speed, required this.onChanged});
+
+  final double speed;
+  final ValueChanged<double>? onChanged;
+
+  static const List<double> _speeds = <double>[0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<double>(
+      enabled: onChanged != null,
+      initialValue: speed,
+      onSelected: onChanged,
+      itemBuilder: (context) => <PopupMenuEntry<double>>[
+        for (final option in _speeds)
+          PopupMenuItem<double>(value: option, child: Text('$option×')),
+      ],
+      child: Chip(label: Text('$speed×')),
     );
   }
 }

@@ -80,5 +80,23 @@ void main() {
       const segmenter = NarrationSegmenter();
       expect(segmenter.segmentParagraphs(const <String>[]), isEmpty);
     });
+
+    test('drops decorative dividers and keeps unit indices contiguous', () {
+      const segmenter = NarrationSegmenter();
+      final units = segmenter.segmentParagraphs(<String>[
+        'Before the break.',
+        '* * * * * *',
+        '----',
+        'After the break.',
+      ]);
+
+      expect(units.map((u) => u.text).toList(), <String>[
+        'Before the break.',
+        'After the break.',
+      ]);
+      expect(units[0].index, 0);
+      expect(units[1].index, 1);
+      expect(units[1].paragraphIndex, 3);
+    });
   });
 }

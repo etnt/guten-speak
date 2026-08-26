@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
 
@@ -85,10 +86,15 @@ class TtsService {
   /// Generates [text] in the voice of [referenceWavPath] and writes the audio
   /// to [outputWavPath]. Returns timing info for evaluation.
   ///
+  /// [numSteps] is the number of flow-matching ODE steps per frame. PocketTTS
+  /// defaults to 5; the PoC uses 28 for quality. It is *not* the throughput
+  /// bottleneck (the per-frame language-model pass dominates), so we keep it
+  /// high for voice fidelity.
+  ///
   /// [temperature] controls sampling randomness: lower values stick closer to
   /// the cloned voice (less drift), higher values sound more varied. [seed]
   /// fixes the random noise so repeated runs are reproducible (pass a negative
-  /// value for a random seed). The defaults are the PoC's tuned values.
+  /// value for a random seed).
   Future<SpeakResult> speak({
     required String text,
     required String referenceWavPath,
@@ -190,7 +196,10 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
             sherpa_onnx.OfflineTtsConfig(
               model: sherpa_onnx.OfflineTtsModelConfig(
                 pocket: pocket,
-                numThreads: 4,
+                // The Pixel-class target has 8 cores; use more of them so
+                // synthesis keeps up with playback (RTF < 1). Left a couple
+                // free for the UI/audio threads.
+                numThreads: 6,
                 debug: false,
               ),
             ),
@@ -216,6 +225,17 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
               'max_reference_audio_len': 12,
               'temperature': temperature,
               'seed': seed,
+              // Runaway control. PocketTTS occasionally fails to emit a stop
+              // token and keeps generating noise, which (a) blocks this serial
+              // worker for tens of seconds and (b) appends audible garbage to
+              // the clip. `max_frames` is a hard per-sentence cap and
+              // `max_char_in_sentence` forces long units to split into small
+              // sentences. Healthy speech runs ~0.7 frames/char (~12.5
+              // frames/sec), so a 100-char sentence needs only ~70 frames;
+              // 160 leaves generous headroom so real speech is never clipped,
+              // while still bounding a runaway sentence to ~13s.
+              'max_char_in_sentence': 100,
+              'max_frames': 160,
             },
           );
 
@@ -226,14 +246,30 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
           );
           stopwatch.stop();
 
+          // Runaway backstop: if the model kept generating well past a
+          // plausible duration for this much text, chop the trailing noise.
+          // Healthy narration runs ~15 chars/sec; we allow a very generous
+          // 10 chars/sec plus 4s slack so real speech is never cut — only a
+          // runaway noise tail is removed.
+          final text = map['text'] as String;
+          final plausibleSeconds = text.length / 10.0 + 4.0;
+          final maxSamples = (plausibleSeconds * audio.sampleRate).round();
+          final bounded = audio.samples.length > maxSamples
+              ? Float32List.sublistView(audio.samples, 0, maxSamples)
+              : audio.samples;
+
+          // Trim edge silence and fade the clip so consecutive units don't
+          // click ("cough") at the seam when played back-to-back.
+          final samples = trimAndFadeClip(bounded, audio.sampleRate);
+
           sherpa_onnx.writeWave(
             filename: map['out'] as String,
-            samples: audio.samples,
+            samples: samples,
             sampleRate: audio.sampleRate,
           );
 
           final seconds = audio.sampleRate > 0
-              ? audio.samples.length / audio.sampleRate
+              ? samples.length / audio.sampleRate
               : 0.0;
 
           toMain.send(<String, dynamic>{

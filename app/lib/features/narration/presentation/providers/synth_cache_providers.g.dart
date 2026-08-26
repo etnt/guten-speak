@@ -27,7 +27,7 @@ final narrationAudioDirectoryProvider = FutureProvider<Directory>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef NarrationAudioDirectoryRef = FutureProviderRef<Directory>;
-String _$synthCacheHash() => r'95c4f7a6ae8e22a3ed542179cca060e1d68c88f2';
+String _$synthCacheHash() => r'2c6ffe8e7cd8550948edd5e3a82c6d078a4caad2';
 
 /// The disk-backed narration synthesis cache (per-unit clips + sqflite index).
 ///
