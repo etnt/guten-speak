@@ -1,0 +1,16 @@
+# Build output
+build/
+
+# Downloaded/extracted TTS model archives (fetched at runtime, ~168 MB)
+*.tar.bz2
+
+# Scratch sample media at repo root (the app's copies live in poc/assets/)
+/Reginald-Ashworth.wav
+/Reginald-Ashworth.mp3
+/Deja-Thoris.wav
+/Deja-Thoris.mp3
+
+# Scratch text files
+/intro.txt
+/sample.txt
+guten-read/
