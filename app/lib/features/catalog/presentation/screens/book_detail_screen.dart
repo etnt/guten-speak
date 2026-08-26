@@ -168,6 +168,14 @@ class _ActionButtons extends ConsumerWidget {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        FilledButton.tonalIcon(
+          onPressed: book.hasReadableText
+              ? () => unawaited(context.push('/listen/${book.id}'))
+              : null,
+          icon: const Icon(Icons.headphones),
+          label: const Text('Listen'),
+        ),
         if (download.status == DownloadStatus.failed &&
             download.failure != null) ...[
           const SizedBox(height: 8),

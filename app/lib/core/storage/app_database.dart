@@ -12,7 +12,7 @@ part 'app_database.g.dart';
 /// not in SQLite.
 abstract final class Db {
   static const String fileName = 'guten_speak.db';
-  static const int version = 2;
+  static const int version = 3;
 
   // catalog (local search index of pg_catalog.csv) ---------------------
   static const String catalog = 'catalog';
@@ -44,6 +44,16 @@ abstract final class Db {
   static const String progressBookId = 'book_id';
   static const String progressParagraphIndex = 'paragraph_index';
   static const String progressUpdatedAt = 'updated_at';
+
+  // synth_cache (per-unit narrated audio index) -------------------------
+  static const String synthCache = 'synth_cache';
+  static const String synthBookId = 'book_id';
+  static const String synthVoiceId = 'voice_id';
+  static const String synthUnitIndex = 'unit_index';
+  static const String synthUnitHash = 'unit_hash';
+  static const String synthFile = 'file';
+  static const String synthBytes = 'bytes';
+  static const String synthCreatedAt = 'created_at';
 }
 
 /// Opens (creating on first run) the shared metadata database and keeps it open
@@ -88,11 +98,15 @@ Future<void> _onCreate(Database db, int version) async {
   ''');
 
   await _createCatalogTables(db);
+  await _createSynthCacheTable(db);
 }
 
 Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 2) {
     await _createCatalogTables(db);
+  }
+  if (oldVersion < 3) {
+    await _createSynthCacheTable(db);
   }
 }
 
@@ -117,6 +131,26 @@ Future<void> _createCatalogTables(Database db) async {
     CREATE TABLE IF NOT EXISTS ${Db.catalogMeta} (
       ${Db.catalogMetaKey} TEXT PRIMARY KEY,
       ${Db.catalogMetaValue} TEXT
+    )
+  ''');
+}
+
+/// Creates the narration synthesis cache index: one row per rendered narration
+/// unit `(book_id, voice_id, unit_index)`, pointing at its audio file on disk.
+/// Rows cascade-delete when the book is removed from the library; the audio
+/// files themselves are cleaned up by the cache (see `SynthCache`).
+Future<void> _createSynthCacheTable(Database db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS ${Db.synthCache} (
+      ${Db.synthBookId} INTEGER NOT NULL
+        REFERENCES ${Db.books} (${Db.bookId}) ON DELETE CASCADE,
+      ${Db.synthVoiceId} TEXT NOT NULL,
+      ${Db.synthUnitIndex} INTEGER NOT NULL,
+      ${Db.synthUnitHash} TEXT NOT NULL,
+      ${Db.synthFile} TEXT NOT NULL,
+      ${Db.synthBytes} INTEGER NOT NULL,
+      ${Db.synthCreatedAt} INTEGER NOT NULL,
+      PRIMARY KEY (${Db.synthBookId}, ${Db.synthVoiceId}, ${Db.synthUnitIndex})
     )
   ''');
 }

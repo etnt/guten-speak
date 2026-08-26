@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/widgets/state_views.dart';
+import '../../../narration/presentation/providers/synth_cache_providers.dart';
 import '../../domain/entities/library_book.dart';
 import '../providers/library_providers.dart';
 
-/// Lists downloaded books; tap to read, delete to remove.
+/// Lists downloaded books; tap to open the book's details page, delete to
+/// remove (which also clears any narrated audio cached for it).
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
 
@@ -58,7 +60,7 @@ class _LibraryTile extends ConsumerWidget {
         tooltip: 'Remove from library',
         onPressed: () => _confirmDelete(context, ref),
       ),
-      onTap: () => context.push('/read/${book.id}'),
+      onTap: () => context.push('/book/${book.id}'),
     );
   }
 
@@ -84,6 +86,8 @@ class _LibraryTile extends ConsumerWidget {
 
     final repo = await ref.read(libraryRepositoryProvider.future);
     await repo.deleteBook(book.id);
+    final cache = await ref.read(synthCacheProvider.future);
+    await cache.invalidateBook(book.id);
     ref.invalidate(libraryBooksProvider);
   }
 }

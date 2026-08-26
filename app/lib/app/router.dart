@@ -6,8 +6,10 @@ import '../features/catalog/presentation/screens/book_detail_screen.dart';
 import '../features/catalog/presentation/screens/catalog_home_screen.dart';
 import '../features/catalog/presentation/screens/search_screen.dart';
 import '../features/library/presentation/screens/library_screen.dart';
+import '../features/narration/presentation/screens/narration_screen.dart';
 import '../features/reader/presentation/screens/reader_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
+import '../features/voices/presentation/screens/voices_screen.dart';
 import 'scaffold_with_nav_bar.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -88,6 +90,22 @@ final appRouter = GoRouter(
         }
         return ReaderScreen(bookId: id);
       },
+    ),
+    GoRoute(
+      path: AppConstants.routeListen,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '');
+        if (id == null) {
+          return const Scaffold(body: Center(child: Text('Invalid book id')));
+        }
+        return NarrationScreen(bookId: id);
+      },
+    ),
+    GoRoute(
+      path: AppConstants.routeVoices,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const VoicesScreen(),
     ),
   ],
 );

@@ -175,6 +175,14 @@ controls, TOC extraction, auto-hiding controls. **Narration integration
 (stretch):** when playback is active, highlight the currently spoken unit and
 auto-scroll; tapping a paragraph seeks narration to that unit.
 
+**Resume position (built):** the reader persists the top **paragraph index** to
+`reading_progress` (one row per book, updated in place) and jumps back to it on
+reopen — the same paragraph-index model narration will resume on. **Bookmarks
+(planned, Phase G):** a separate `bookmarks(id, book_id FK, paragraph_index,
+note?, created_at)` table (many per book) reusing the same jump mechanism —
+toggle in the top bar, margin marker on bookmarked paragraphs, and a
+"Bookmarks" list (alongside the TOC sheet) that jumps on tap.
+
 ### 5.4 Voice Library (`features/voices`) — port from PoC
 Proven in the PoC ([voice_library.dart](../poc/lib/voice_library.dart)):
 - **Import `.wav`** via `file_picker`; copy into `<appSupport>/voices/` with a
@@ -369,27 +377,89 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
       lazily triggered when the Search screen first opens, with a progress UI.)_
 
 ### Phase C — Narration core (port PoC)
-- [ ] Port `tts_service.dart`, `model_manager.dart`, WAV I/O into `core/tts/`
+- [x] Port `tts_service.dart`, `model_manager.dart`, WAV I/O into `core/tts/`
       behind the isolate protocol (`init`/`synth`/`dispose`).
-- [ ] Port voice library into `features/voices/` (+ built-in Reginald & Deja).
-- [ ] **First-run model download UX**: opt-in gate (only when the user first hits
+      _(`core/tts/wav_io.dart` — tolerant RIFF/WAVE reader (PCM/IEEE float,
+      8/16/24/32-bit, `WAVE_FORMAT_EXTENSIBLE`, multi-channel downmix) +
+      `conditionReference` (silence trim, 99th-pctile normalize, hard clip).
+      `core/tts/tts_service.dart` — persistent worker isolate; RPC handshake sends
+      a `SendPort`, then `init`/`speak`/`dispose` commands each carry a numeric
+      `id` echoed back (errors as `{id, error}`); tuned params numSteps=28,
+      temperature=0.20, seed=1234, numThreads=4, max_reference_audio_len=12.
+      `core/tts/model_manager.dart` — resolves the `sherpa-onnx-pocket-tts-…`
+      model paths; download/extract detailed below.)_
+- [x] Port voice library into `features/voices/` (+ built-in Reginald & Deja).
+      _(`Voice` entity + `VoiceLibrary` data source: built-ins Reginald Ashworth
+      & Deja Thoris materialized from bundled `assets/voices/*.wav`; user voices
+      imported via `file_picker` and copied under `<appSupport>/voices/`, indexed
+      in `index.json`. `voice_providers.dart` (Riverpod codegen) exposes the
+      library, a `VoicesController`, and `SelectedVoice`. `VoicesScreen` (reached
+      from Settings → "Narrator voices") lists/selects/imports/deletes voices.)_
+- [x] **First-run model download UX**: opt-in gate (only when the user first hits
       "Listen"), consent + storage-space check, progress, mirror→upstream
       fallback, cancel/retry, resumable.
-- [ ] "Synthesize one unit in the selected voice" end-to-end smoke test.
+      _(`NarrationScreen` (`/listen/:id`, opened from a "Listen" button on the
+      book detail) gates synthesis behind a consent card stating the ~470 MB
+      download. `ModelManager.ensureModel` downloads resumably (writes
+      `<target>.part` with `Range: bytes=` resume, polls a cancel callback
+      between chunks), falls back mirror→upstream, extracts the `.tar.bz2` off the
+      UI isolate via `Isolate.run` (bz2→RAM, delete archive, untar).
+      `NarrationEngine` (Riverpod) drives `NarrationPrepProgress`
+      (idle/downloading/extracting/loading/ready/error) with cancel + retry.
+      Real free-space precheck is best-effort/deferred; the consent copy states
+      the size so the user opts in explicitly.)_
+- [x] "Synthesize one unit in the selected voice" end-to-end smoke test.
+      _(On-device via `NarrationScreen`'s smoke-test card: segments the first
+      readable unit with `NarrationSegmenter`, synthesizes it in the selected
+      voice through the worker isolate, plays it back with `just_audio`, and shows
+      the real-time factor. Pure-Dart value objects covered by
+      `narration_value_objects_test.dart`; full synthesis needs the 470 MB model
+      + native libs so it stays a device smoke test rather than a CI test.)_
+
 
 ### Phase D — Synthesis cache + scheduler
-- [ ] `SynthCache` keyed by `(bookId, voiceId, unitHash)`, indexed in `sqflite`
+- [x] `SynthCache` keyed by `(bookId, voiceId, unitHash)`, indexed in `sqflite`
       (`synth_cache(book_id, voice_id, unit_index, unit_hash, file, bytes,
       created_at)`); files under `audio/{bookId}/{voiceId}/`.
-- [ ] **Look-ahead scheduler**: single serial synth queue on the worker isolate
+      _(Done. DB `version` bumped 2→3 with an `_onUpgrade` migration; the table
+      has `PRIMARY KEY (book_id, voice_id, unit_index)` and `book_id` FKs
+      `books(id) ON DELETE CASCADE` so deleting a book cascades its rows.
+      `SynthCache` (data-layer repo) fronts a `SynthCacheDataSource`; keys are
+      hashed with a deterministic FNV-1a 64-bit `stableTextHash` — `String.hashCode`
+      is not stable across runs, so it can't key a persisted cache. Exposed to
+      the domain via the `NarrationAudioCache` interface so the scheduler stays
+      pure/testable.)_
+- [x] **Look-ahead scheduler**: single serial synth queue on the worker isolate
       (one job at a time — RAM-bound); keep N units ahead of the play head;
       **cancel/replan the queue on seek or voice change** (drop now-stale jobs,
       re-prioritize around the new play head); backpressure when playback catches
       up (pause the player with a "buffering" state until the next unit lands).
-- [ ] **Rolling-window storage**: keep only the window of recent/upcoming units on
+      _(Done. `LookAheadScheduler` runs a single serial pump that always targets
+      the first not-yet-ready unit in `[playHead, playHead+lookAhead]` (default
+      3). Because each iteration re-evaluates relative to the current head,
+      **seeks replan automatically**: `seekTo` moves the head and re-pumps. A
+      synth already in flight when a seek arrives finishes (the native call isn't
+      interruptible) and its clip is still cached, then the loop re-targets. A
+      voice change is a replan one level up (dispose + new scheduler +
+      `invalidateVoice`) — wired to the player in Phase E. Buffering/backpressure
+      is surfaced for the player via an `events` stream (`ready`/`failed`) plus
+      `isReady(index)`; the player consumes these in Phase E. Pure-Dart unit
+      tests cover window ordering, cross-session cache reuse, seek replanning,
+      the events stream, failure handling, and window eviction.)_
+- [x] **Rolling-window storage**: keep only the window of recent/upcoming units on
       disk, evict played-and-past units (LRU by `unit_index` distance); decide
       WAV-vs-compressed here (start WAV, measure).
-- [ ] Cache invalidation on voice change / book re-download (delete affected keys).
+      _(Done. Each pump iteration evicts `_ready` entries and cached clips/rows
+      outside `[playHead-behind, playHead+lookAhead]` (default behind=1) via
+      `NarrationAudioCache.evictOutsideWindow`. Clips are stored as WAV for now.)_
+- [x] Cache invalidation on voice change / book re-download (delete affected keys).
+      _(Done. Book re-download is handled **implicitly**: `cachedPath` compares the
+      stored `unit_hash` against the current text's `stableTextHash` and treats a
+      mismatch as a miss (dropping the stale clip), so changed text auto-re-renders.
+      Explicit `invalidateBook`/`invalidateVoice` clean up orphaned audio FILES on
+      disk (DB rows cascade, but files don't): `library_screen` delete calls
+      `invalidateBook`, and `VoicesController.removeVoice` calls `invalidateVoice`.)_
+
 
 ### Phase E — Player
 - [ ] `audio_service` background handler + `just_audio`; feed cached per-unit
@@ -414,6 +484,12 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
 ### Phase G — Polish & release
 - [ ] Narration settings (default voice, quality preset, speed, pre-cache) +
       surface the app dark/light theme toggle in Settings UI.
+- [ ] **Bookmarks**: new `bookmarks(id, book_id FK→books ON DELETE CASCADE,
+      paragraph_index, note?, created_at)` table (DB `version` bump + `onUpgrade`);
+      reader top-bar toggle, margin marker on bookmarked paragraphs, and a
+      "Bookmarks" list (beside the TOC sheet) that jumps via the existing
+      paragraph-index mechanism. (Resume-where-you-left-off already ships via
+      `reading_progress`; this adds named, multiple positions per book.)
 - [ ] Storage manager (model, per-book audio, voices) with delete/clear + sizes.
 - [ ] Tests: text cleaner (fixtures), segmenter (abbrev/chunking), cache keying,
       scheduler replan-on-seek, notifiers; widget/golden for reader + player.
