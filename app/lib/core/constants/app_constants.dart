@@ -24,6 +24,12 @@ class AppConstants {
   static String plainTextUrl(int id) =>
       'https://www.gutenberg.org/ebooks/$id.txt.utf-8';
 
+  /// EPUB (with images) download URL for a book, derived from its id.
+  /// Preferred over plain text because it carries a publisher-authored table of
+  /// contents; falls back to [plainTextUrl] when no EPUB edition exists.
+  static String epubUrl(int id) =>
+      'https://www.gutenberg.org/ebooks/$id.epub3.images';
+
   /// Medium cover-thumbnail URL for a book, derived from its id.
   static String coverImageUrl(int id) =>
       'https://www.gutenberg.org/cache/epub/$id/pg$id.cover.medium.jpg';

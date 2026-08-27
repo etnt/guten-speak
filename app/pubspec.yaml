@@ -50,6 +50,10 @@ dependencies:
   freezed_annotation: ^3.1.0
   json_annotation: ">=4.9.0 <4.10.0"
 
+  # ── EPUB parsing ──
+  xml: ^6.5.0
+  html: ^0.15.5
+
   # ── Narration (ported from the PoC) ──
   sherpa_onnx: ^1.13.6
   file_picker: ^12.1.0

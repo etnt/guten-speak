@@ -56,7 +56,10 @@ class CatalogImport extends _$CatalogImport {
         state = CatalogImportProgress.ready(await service.count());
         return;
       }
-      await service.import(onProgress: (progress) => state = progress);
+      await service.import(
+        onProgress: (progress) => state = progress,
+        allowStaged: true,
+      );
       state = CatalogImportProgress.ready(await service.count());
     } catch (error) {
       state = CatalogImportProgress.error(error.toString());

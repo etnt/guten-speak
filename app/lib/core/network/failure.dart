@@ -38,6 +38,12 @@ class CacheFailure extends Failure {
   const CacheFailure([super.message = 'A local storage error occurred.']);
 }
 
+/// The supplied input was invalid or unsupported (e.g. a malformed or
+/// DRM-protected file that cannot be read).
+class ValidationFailure extends Failure {
+  const ValidationFailure([super.message = 'The file could not be read.']);
+}
+
 /// Any error that does not map to a more specific failure.
 class UnknownFailure extends Failure {
   const UnknownFailure([super.message = 'An unexpected error occurred.']);

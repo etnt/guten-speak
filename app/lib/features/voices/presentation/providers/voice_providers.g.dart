@@ -45,10 +45,10 @@ final voicesControllerProvider =
     );
 
 typedef _$VoicesController = AsyncNotifier<List<Voice>>;
-String _$selectedVoiceHash() => r'584f8e8c97a118d0d243a1361c1f4a9738fccea9';
+String _$selectedVoiceHash() => r'2b03ecc6c00d51ccee2cea58ba50bea6144314c3';
 
-/// The voice chosen for narration. Null until the user (or the narration screen)
-/// picks one; consumers should fall back to the first available voice.
+/// The voice chosen for narration. Restored from the persisted default on first
+/// build; consumers should fall back to the first available voice when null.
 ///
 /// Copied from [SelectedVoice].
 @ProviderFor(SelectedVoice)

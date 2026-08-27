@@ -137,6 +137,34 @@ class BookDownloadController extends _$BookDownloadController {
   void cancel() => _cancelToken?.cancel();
 }
 
+/// Imports a local `.epub` file into the library. [state] is `true` while an
+/// import is in progress so the UI can show a spinner and disable the action.
+@riverpod
+class BookImportController extends _$BookImportController {
+  @override
+  bool build() => false;
+
+  /// Imports the `.epub` at [sourcePath]. Returns the stored record on success;
+  /// rethrows a [Failure] on error for the caller to surface.
+  Future<LibraryBook?> importFromFile(String sourcePath) async {
+    if (state) return null;
+    state = true;
+    try {
+      final repo = await ref.read(libraryRepositoryProvider.future);
+      final result = await repo.importEpub(sourcePath);
+      return result.when(
+        onSuccess: (book) {
+          ref.invalidate(libraryBooksProvider);
+          return book;
+        },
+        onFailure: (failure) => throw failure,
+      );
+    } finally {
+      state = false;
+    }
+  }
+}
+
 /// The saved reading position for [bookId], if any.
 @riverpod
 Future<ReadingProgress?> readingProgress(Ref ref, int bookId) async {

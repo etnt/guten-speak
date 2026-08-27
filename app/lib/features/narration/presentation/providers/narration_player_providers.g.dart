@@ -7,7 +7,7 @@ part of 'narration_player_providers.dart';
 // **************************************************************************
 
 String _$narrationAudioHandlerHash() =>
-    r'e09e300a89d7242149f1e798f7527306cd7925a0';
+    r'63bfc5b5b8b0dbc26c919732684054abba5ae8bd';
 
 /// The singleton background narration player, initialized inside
 /// `audio_service` so it survives backgrounding and drives the media

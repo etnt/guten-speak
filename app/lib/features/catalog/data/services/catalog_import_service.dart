@@ -39,25 +39,37 @@ class CatalogImportService {
 
   /// Downloads, parses and indexes the catalog, reporting progress through
   /// [onProgress]. Replaces any existing index.
+  ///
+  /// When [allowStaged] is true and a non-empty CSV is already present at the
+  /// destination (e.g. sideloaded over USB because the network is too slow),
+  /// it is used as-is and the network download is skipped.
   Future<void> import({
     required void Function(CatalogImportProgress progress) onProgress,
+    bool allowStaged = false,
   }) async {
     final dir = await getApplicationSupportDirectory();
     final file = File(p.join(dir.path, _csvFileName));
 
     try {
-      // 1. Download the CSV.
-      onProgress(const CatalogImportProgress.downloading(0));
-      final response = await _dio.download(
-        AppConstants.catalogCsvUrl,
-        file.path,
-        onReceiveProgress: (received, total) {
-          onProgress(
-            CatalogImportProgress.downloading(total > 0 ? received / total : 0),
-          );
-        },
-      );
-      final lastModified = response.headers.value('last-modified');
+      String? lastModified;
+      // 1. Obtain the CSV: reuse a staged copy when allowed, else download it.
+      if (allowStaged && await file.exists() && await file.length() > 0) {
+        onProgress(const CatalogImportProgress.downloading(1));
+      } else {
+        onProgress(const CatalogImportProgress.downloading(0));
+        final response = await _dio.download(
+          AppConstants.catalogCsvUrl,
+          file.path,
+          onReceiveProgress: (received, total) {
+            onProgress(
+              CatalogImportProgress.downloading(
+                total > 0 ? received / total : 0,
+              ),
+            );
+          },
+        );
+        lastModified = response.headers.value('last-modified');
+      }
 
       // 2. Parse it in a background isolate.
       onProgress(const CatalogImportProgress.parsing());

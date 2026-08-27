@@ -6,7 +6,7 @@ part of 'reader_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$readerContentHash() => r'f02b9483f7ec75bb69c6dcbce02040987925df04';
+String _$readerContentHash() => r'fc396ceb6f1d68547d0ce381c7920bc9bf4e3583';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -32,8 +32,8 @@ class _SystemHash {
 /// Loads a downloaded book's paragraphs and table of contents for the reader.
 ///
 /// Requires the book to already be in the library; the "Read" action downloads
-/// it first. The stored text is already cleaned, so this only splits paragraphs
-/// and extracts headings.
+/// it first. Content resolution (EPUB vs. cleaned plain text) is handled by the
+/// repository.
 ///
 /// Copied from [readerContent].
 @ProviderFor(readerContent)
@@ -42,16 +42,16 @@ const readerContentProvider = ReaderContentFamily();
 /// Loads a downloaded book's paragraphs and table of contents for the reader.
 ///
 /// Requires the book to already be in the library; the "Read" action downloads
-/// it first. The stored text is already cleaned, so this only splits paragraphs
-/// and extracts headings.
+/// it first. Content resolution (EPUB vs. cleaned plain text) is handled by the
+/// repository.
 ///
 /// Copied from [readerContent].
 class ReaderContentFamily extends Family<AsyncValue<ReaderContent>> {
   /// Loads a downloaded book's paragraphs and table of contents for the reader.
   ///
   /// Requires the book to already be in the library; the "Read" action downloads
-  /// it first. The stored text is already cleaned, so this only splits paragraphs
-  /// and extracts headings.
+  /// it first. Content resolution (EPUB vs. cleaned plain text) is handled by the
+  /// repository.
   ///
   /// Copied from [readerContent].
   const ReaderContentFamily();
@@ -59,8 +59,8 @@ class ReaderContentFamily extends Family<AsyncValue<ReaderContent>> {
   /// Loads a downloaded book's paragraphs and table of contents for the reader.
   ///
   /// Requires the book to already be in the library; the "Read" action downloads
-  /// it first. The stored text is already cleaned, so this only splits paragraphs
-  /// and extracts headings.
+  /// it first. Content resolution (EPUB vs. cleaned plain text) is handled by the
+  /// repository.
   ///
   /// Copied from [readerContent].
   ReaderContentProvider call(int bookId) {
@@ -92,16 +92,16 @@ class ReaderContentFamily extends Family<AsyncValue<ReaderContent>> {
 /// Loads a downloaded book's paragraphs and table of contents for the reader.
 ///
 /// Requires the book to already be in the library; the "Read" action downloads
-/// it first. The stored text is already cleaned, so this only splits paragraphs
-/// and extracts headings.
+/// it first. Content resolution (EPUB vs. cleaned plain text) is handled by the
+/// repository.
 ///
 /// Copied from [readerContent].
 class ReaderContentProvider extends AutoDisposeFutureProvider<ReaderContent> {
   /// Loads a downloaded book's paragraphs and table of contents for the reader.
   ///
   /// Requires the book to already be in the library; the "Read" action downloads
-  /// it first. The stored text is already cleaned, so this only splits paragraphs
-  /// and extracts headings.
+  /// it first. Content resolution (EPUB vs. cleaned plain text) is handled by the
+  /// repository.
   ///
   /// Copied from [readerContent].
   ReaderContentProvider(int bookId)

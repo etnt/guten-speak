@@ -539,5 +539,25 @@ class _BookDownloadControllerProviderElement
   int get bookId => (origin as BookDownloadControllerProvider).bookId;
 }
 
+String _$bookImportControllerHash() =>
+    r'5ae65e481919878e7997df30a916762e555343ad';
+
+/// Imports a local `.epub` file into the library. [state] is `true` while an
+/// import is in progress so the UI can show a spinner and disable the action.
+///
+/// Copied from [BookImportController].
+@ProviderFor(BookImportController)
+final bookImportControllerProvider =
+    AutoDisposeNotifierProvider<BookImportController, bool>.internal(
+      BookImportController.new,
+      name: r'bookImportControllerProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$bookImportControllerHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$BookImportController = AutoDisposeNotifier<bool>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

@@ -119,8 +119,11 @@ class _ActionButtons extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final download = ref.watch(bookDownloadControllerProvider(book.id));
-    final isDownloaded =
-        ref.watch(libraryBookProvider(book.id)).valueOrNull != null;
+    final libraryBook = ref.watch(libraryBookProvider(book.id)).valueOrNull;
+    final isDownloaded = libraryBook != null;
+    final isEpub =
+        libraryBook != null &&
+        libraryBook.path.toLowerCase().endsWith('.epub');
     final controller = ref.read(
       bookDownloadControllerProvider(book.id).notifier,
     );
@@ -176,6 +179,23 @@ class _ActionButtons extends ConsumerWidget {
           icon: const Icon(Icons.headphones),
           label: const Text('Listen'),
         ),
+        if (libraryBook != null) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(
+                isEpub ? Icons.menu_book_outlined : Icons.description_outlined,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isEpub ? 'Downloaded as EPUB' : 'Downloaded as plain text',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ],
         if (download.status == DownloadStatus.failed &&
             download.failure != null) ...[
           const SizedBox(height: 8),
