@@ -546,9 +546,20 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
 
 
 ### Phase F — Reader ↔ narration sync (stretch)
-- [ ] Highlight current unit + auto-scroll during playback (drive off the shared
+- [x] Highlight current unit + auto-scroll during playback (drive off the shared
       `paragraphIndex`).
-- [ ] Tap paragraph → seek narration to that unit (triggers scheduler replan).
+      _(Done. The reader segments the book into the same `NarrationUnit`s as the
+      player — cached by the paragraphs-list identity — watches
+      `narrationPlaybackProvider`, and when playback is active for the open book
+      maps `unitIndex → paragraphIndex` to tint the current paragraph. While
+      playing it follows along, animating the narrated paragraph into view as the
+      narrator advances (highlight-only when paused, so it doesn't fight manual
+      scrolling).)_
+- [x] Tap paragraph → seek narration to that unit (triggers scheduler replan).
+      _(Done. When narration is active for this book, tapping a paragraph seeks
+      to its first unit via `handler.seekToUnit` (paragraphs with no speakable
+      unit — e.g. dividers — resolve forward to the next one); when not
+      narrating, a tap keeps the existing toggle-controls behaviour.)_
 
 ### Phase G — Polish & release
 - [ ] Narration settings (default voice, quality preset, speed, pre-cache) +

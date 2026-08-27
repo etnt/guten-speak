@@ -6,9 +6,12 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/utils/narration_segmenter.dart';
 import '../../../../core/utils/toc_extractor.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../library/presentation/providers/library_providers.dart';
+import '../../../narration/domain/entities/narration_playback.dart';
+import '../../../narration/presentation/providers/narration_player_providers.dart';
 import '../../domain/entities/reader_content.dart';
 import '../providers/reader_providers.dart';
 import '../providers/reader_settings_provider.dart';
@@ -61,6 +64,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   bool _restored = false;
   int _firstVisible = 0;
   Timer? _saveDebounce;
+
+  // Narration sync: units are segmented the same way the player does, so the
+  // reader can map the current unit → paragraph (highlight/follow) and a tapped
+  // paragraph → its first unit (seek). Cached by the paragraphs list identity so
+  // it's computed once per loaded book rather than on every rebuild.
+  List<String>? _unitsSource;
+  List<NarrationUnit> _units = const <NarrationUnit>[];
+  final Map<int, int> _paraToFirstUnit = <int, int>{};
+  int? _lastFollowedParagraph;
 
   @override
   void initState() {
@@ -127,12 +139,83 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   void _toggleControls() => setState(() => _showControls = !_showControls);
 
+  /// Segments [content] into narration units (matching the player) and builds
+  /// the paragraph → first-unit lookup, caching by the paragraphs list identity
+  /// so it only runs once per loaded book.
+  List<NarrationUnit> _unitsFor(ReaderContent content) {
+    if (identical(_unitsSource, content.paragraphs)) return _units;
+    _unitsSource = content.paragraphs;
+    _units = const NarrationSegmenter().segmentParagraphs(content.paragraphs);
+    _paraToFirstUnit.clear();
+    for (final unit in _units) {
+      _paraToFirstUnit.putIfAbsent(unit.paragraphIndex, () => unit.index);
+    }
+    return _units;
+  }
+
+  /// The paragraph the narrator is currently on, or null when playback isn't
+  /// active for this book or the unit index is out of range.
+  int? _narratedParagraph(NarrationPlaybackState? playback) {
+    if (playback == null ||
+        playback.bookId != widget.bookId ||
+        !playback.isActive) {
+      return null;
+    }
+    final index = playback.unitIndex;
+    if (index < 0 || index >= _units.length) return null;
+    return _units[index].paragraphIndex;
+  }
+
+  /// The first narration unit at or after [paragraphIndex] (paragraphs with no
+  /// speakable units — e.g. dividers — are skipped forward to the next one).
+  int? _firstUnitAtOrAfter(int paragraphIndex, int paragraphCount) {
+    for (var p = paragraphIndex; p < paragraphCount; p++) {
+      final unit = _paraToFirstUnit[p];
+      if (unit != null) return unit;
+    }
+    return null;
+  }
+
+  /// Follows narration while it plays: scrolls the tapped/played paragraph into
+  /// view when the narrator moves to a new one.
+  void _followNarration(NarrationPlaybackState? playback) {
+    if (playback == null || !playback.isPlaying) return;
+    final paragraph = _narratedParagraph(playback);
+    if (paragraph == null || paragraph == _lastFollowedParagraph) return;
+    _lastFollowedParagraph = paragraph;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _jumpToParagraph(paragraph);
+    });
+  }
+
+  /// Handles a paragraph tap: seek the narrator there when it's narrating this
+  /// book, otherwise fall back to toggling the reading controls.
+  Future<void> _onParagraphTap(int index, int paragraphCount) async {
+    final playback = ref.read(narrationPlaybackProvider).valueOrNull;
+    final narrating =
+        playback != null &&
+        playback.bookId == widget.bookId &&
+        playback.isActive;
+    if (!narrating) {
+      _toggleControls();
+      return;
+    }
+    final unit = _firstUnitAtOrAfter(index, paragraphCount);
+    if (unit == null) {
+      _toggleControls();
+      return;
+    }
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.seekToUnit(unit);
+  }
+
   @override
   Widget build(BuildContext context) {
     _readerController = ref.read(readerControllerProvider.notifier);
     final contentAsync = ref.watch(readerContentProvider(widget.bookId));
     final settings = ref.watch(readerSettingsProvider);
     final palette = _paletteFor(settings.themeMode);
+    final playback = ref.watch(narrationPlaybackProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -142,7 +225,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           error: error,
           onRetry: () => ref.invalidate(readerContentProvider(widget.bookId)),
         ),
-        data: (content) => _buildReader(content, settings, palette),
+        data: (content) => _buildReader(content, settings, palette, playback),
       ),
     );
   }
@@ -151,8 +234,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     ReaderContent content,
     ReaderSettings settings,
     _ReaderPalette palette,
+    NarrationPlaybackState? playback,
   ) {
     _maybeRestore();
+    _unitsFor(content);
+    _followNarration(playback);
+    final narratedParagraph = _narratedParagraph(playback);
 
     final headingIndices = <int>{for (final e in content.toc) e.paragraphIndex};
     final baseSize = 18.0 * settings.fontScale;
@@ -174,15 +261,37 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
             itemCount: content.paragraphs.length,
             itemBuilder: (context, index) {
               final isHeading = headingIndices.contains(index);
+              final isNarrated = index == narratedParagraph;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  content.paragraphs[index],
-                  style: TextStyle(
-                    color: palette.foreground,
-                    fontSize: isHeading ? baseSize * 1.25 : baseSize,
-                    height: 1.5,
-                    fontWeight: isHeading ? FontWeight.bold : FontWeight.normal,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => unawaited(
+                    _onParagraphTap(index, content.paragraphs.length),
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isNarrated
+                          ? palette.foreground.withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      content.paragraphs[index],
+                      style: TextStyle(
+                        color: palette.foreground,
+                        fontSize: isHeading ? baseSize * 1.25 : baseSize,
+                        height: 1.5,
+                        fontWeight: isHeading
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
                   ),
                 ),
               );
