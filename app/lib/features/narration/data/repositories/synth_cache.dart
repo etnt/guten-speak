@@ -115,6 +115,41 @@ class SynthCache implements NarrationAudioCache {
     }
   }
 
+  /// Removes every cached clip for all books and voices — used by the storage
+  /// manager's "clear all narrated audio" action.
+  Future<void> clearAll() async {
+    await _data.deleteAll();
+    if (_audioRoot.existsSync()) {
+      await for (final entity in _audioRoot.list(followLinks: false)) {
+        await entity.delete(recursive: true);
+      }
+    }
+  }
+
+  /// On-disk bytes of cached clips grouped by book id, computed by walking the
+  /// audio tree (`<audioRoot>/<bookId>/…`). Directories whose name isn't an
+  /// integer book id are ignored.
+  Future<Map<int, int>> bytesPerBook() async {
+    final result = <int, int>{};
+    if (!_audioRoot.existsSync()) return result;
+    await for (final entity in _audioRoot.list(followLinks: false)) {
+      if (entity is! Directory) continue;
+      final bookId = int.tryParse(p.basename(entity.path));
+      if (bookId == null) continue;
+      var total = 0;
+      await for (final file in entity.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (file is File) {
+          total += await file.length();
+        }
+      }
+      result[bookId] = total;
+    }
+    return result;
+  }
+
   Future<void> _deleteRowAndFile(
     int bookId,
     String voiceId,

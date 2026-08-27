@@ -271,7 +271,8 @@ class EpubParser {
       final anchorKey = entry.fragment == null
           ? null
           : '${entry.path}#${entry.fragment}';
-      final index = (anchorKey != null ? anchorIndex[anchorKey] : null) ??
+      final index =
+          (anchorKey != null ? anchorIndex[anchorKey] : null) ??
           fileStart[entry.path];
       if (index == null || index == lastIndex) continue;
       entries.add(TocEntry(title: entry.title, paragraphIndex: index));
@@ -355,7 +356,9 @@ class EpubParser {
           ? ''
           : labels.first.innerText.replaceAll(_whitespace, ' ').trim();
       final contentEl = point.findAllElements('content', namespace: '*');
-      final src = contentEl.isEmpty ? null : contentEl.first.getAttribute('src');
+      final src = contentEl.isEmpty
+          ? null
+          : contentEl.first.getAttribute('src');
       if (title.isEmpty || src == null || src.isEmpty) continue;
       final entry = _resolveHref(src, baseDir, title);
       if (entry != null) entries.add(entry);

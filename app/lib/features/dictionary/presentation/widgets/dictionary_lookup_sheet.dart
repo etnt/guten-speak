@@ -92,7 +92,10 @@ class _DownloadGate extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Downloading dictionary…$pct', style: theme.textTheme.bodyMedium),
+          Text(
+            'Downloading dictionary…$pct',
+            style: theme.textTheme.bodyMedium,
+          ),
           const SizedBox(height: 12),
           LinearProgressIndicator(value: state.fraction),
           const SizedBox(height: 12),
@@ -128,7 +131,9 @@ class _DownloadGate extends ConsumerWidget {
         FilledButton.icon(
           onPressed: controller.download,
           icon: const Icon(Icons.download),
-          label: Text(state.error != null ? 'Try again' : 'Download dictionary'),
+          label: Text(
+            state.error != null ? 'Try again' : 'Download dictionary',
+          ),
         ),
       ],
     );
@@ -154,10 +159,8 @@ class _Definitions extends ConsumerWidget {
           shrinkWrap: true,
           itemCount: senses.length,
           separatorBuilder: (_, _) => const SizedBox(height: 16),
-          itemBuilder: (context, index) => _SenseTile(
-            index: index + 1,
-            sense: senses[index],
-          ),
+          itemBuilder: (context, index) =>
+              _SenseTile(index: index + 1, sense: senses[index]),
         );
       },
     );

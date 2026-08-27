@@ -43,6 +43,7 @@ class AppConstants {
   static const String routeReader = '/read/:id';
   static const String routeListen = '/listen/:id';
   static const String routeVoices = '/voices';
+  static const String routeStorage = '/storage';
 
   /// Curated subjects surfaced on the Discover screen.
   static const List<String> curatedSubjects = <String>[

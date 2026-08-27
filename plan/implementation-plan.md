@@ -570,7 +570,7 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
       "Bookmarks" list (beside the TOC sheet) that jumps via the existing
       paragraph-index mechanism. (Resume-where-you-left-off already ships via
       `reading_progress`; this adds named, multiple positions per book.)
-- [ ] Storage manager (model, per-book audio, voices) with delete/clear + sizes.
+- [x] Storage manager (model, per-book audio, voices) with delete/clear + sizes.
 - [ ] Tests: text cleaner (fixtures), segmenter (abbrev/chunking), cache keying,
       scheduler replan-on-seek, notifiers; widget/golden for reader + player.
 - [ ] Accessibility, predictive back, thermals/battery check on a mid-range phone.

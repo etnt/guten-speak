@@ -47,6 +47,8 @@ class NarrationPlaybackState {
     this.preparedCount = 0,
     this.prepTarget = 0,
     this.etaSeconds,
+    this.renderedThrough = 0,
+    this.plannedThrough = 0,
   });
 
   final NarrationStatus status;
@@ -70,6 +72,20 @@ class NarrationPlaybackState {
   /// Rough estimate of the remaining preparation time, in seconds; null until
   /// at least one unit has been timed.
   final int? etaSeconds;
+
+  /// Highest unit index that, together with the current unit, forms a
+  /// contiguous run of clips already rendered to disk. Lets the player show how
+  /// far ahead is prepared during playback.
+  final int renderedThrough;
+
+  /// Highest unit index the scheduler intends to have ready ahead of the play
+  /// head (the look-ahead window edge). Units between [renderedThrough] and
+  /// this are queued to be prepared but not yet on disk.
+  final int plannedThrough;
+
+  /// Number of units rendered and ready ahead of the current play position.
+  int get preparedAhead =>
+      renderedThrough > unitIndex ? renderedThrough - unitIndex : 0;
 
   /// A book is loaded (whether playing, paused, or buffering).
   bool get isActive => bookId != null && status != NarrationStatus.idle;
@@ -106,6 +122,8 @@ class NarrationPlaybackState {
     int? preparedCount,
     int? prepTarget,
     int? etaSeconds,
+    int? renderedThrough,
+    int? plannedThrough,
   }) {
     return NarrationPlaybackState(
       status: status ?? this.status,
@@ -121,6 +139,8 @@ class NarrationPlaybackState {
       preparedCount: preparedCount ?? this.preparedCount,
       prepTarget: prepTarget ?? this.prepTarget,
       etaSeconds: etaSeconds,
+      renderedThrough: renderedThrough ?? this.renderedThrough,
+      plannedThrough: plannedThrough ?? this.plannedThrough,
     );
   }
 }

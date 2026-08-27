@@ -126,6 +126,18 @@ class VoiceLibrary {
     await _save();
   }
 
+  /// Total bytes of the imported (non-built-in) voice `.wav` files on disk.
+  Future<int> userVoicesBytes() async {
+    var total = 0;
+    for (final voice in _user) {
+      final file = File(voice.wavPath);
+      if (file.existsSync()) {
+        total += await file.length();
+      }
+    }
+    return total;
+  }
+
   Future<void> _save() async {
     final dir = _dir;
     if (dir == null) return;

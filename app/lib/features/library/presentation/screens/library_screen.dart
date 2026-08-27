@@ -121,9 +121,8 @@ class _LibraryTile extends ConsumerWidget {
       ),
       // Imported books (negative ids) have no catalog detail page, so open
       // them straight in the reader; Gutenberg books show their details first.
-      onTap: () => context.push(
-        book.id < 0 ? '/read/${book.id}' : '/book/${book.id}',
-      ),
+      onTap: () =>
+          context.push(book.id < 0 ? '/read/${book.id}' : '/book/${book.id}'),
     );
   }
 

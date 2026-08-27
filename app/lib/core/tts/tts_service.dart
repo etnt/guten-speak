@@ -216,65 +216,96 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
           final numSteps = map['numSteps'] as int;
           final temperature = map['temperature'] as double;
           final seed = map['seed'] as int;
+          // Quote glyphs are visual punctuation, not speech. PocketTTS can
+          // miss its stop token on a trailing smart quote (for example `.”`),
+          // producing the grinding tail this retry loop is meant to reject.
+          final text = (map['text'] as String)
+              .replaceAll('"', '')
+              .replaceAll('\u201C', '')
+              .replaceAll('\u201D', '')
+              .replaceAll('\u201E', '')
+              .replaceAll('\u201F', '')
+              .replaceAll('\u2018', "'")
+              .replaceAll('\u2019', "'");
+          var sampleRate = 0;
 
-          final genConfig = sherpa_onnx.OfflineTtsGenerationConfig(
-            numSteps: numSteps,
-            referenceAudio: wave.samples,
-            referenceSampleRate: wave.sampleRate,
-            extra: <String, Object>{
-              'max_reference_audio_len': 12,
-              'temperature': temperature,
-              'seed': seed,
-              // Runaway control. PocketTTS occasionally fails to emit a stop
-              // token and keeps generating noise, which (a) blocks this serial
-              // worker for tens of seconds and (b) appends audible garbage to
-              // the clip. `max_frames` is a hard per-sentence cap and
-              // `max_char_in_sentence` forces long units to split into small
-              // sentences. Healthy speech runs ~0.7 frames/char (~12.5
-              // frames/sec), so a 100-char sentence needs only ~70 frames;
-              // 160 leaves generous headroom so real speech is never clipped,
-              // while still bounding a runaway sentence to ~13s.
-              'max_char_in_sentence': 100,
-              'max_frames': 160,
-            },
-          );
-
+          // PocketTTS occasionally misses its stop token and appends a long
+          // grinding/noise tail. Never truncate and cache that bad attempt.
+          // Validate the full utterance first; if it runs away, split it at
+          // natural clause boundaries and synthesize independently validated
+          // shorter clips instead.
           final stopwatch = Stopwatch()..start();
-          final audio = engine.generateWithConfig(
-            text: map['text'] as String,
-            config: genConfig,
-          );
-          stopwatch.stop();
+          Float32List? generatePlausible(
+            String phrase, {
+            required int seedOffset,
+            required int attempts,
+          }) {
+            final plausibleSeconds = phrase.length / 10.0 + 4.0;
+            for (var attempt = 0; attempt < attempts; attempt++) {
+              final genConfig = sherpa_onnx.OfflineTtsGenerationConfig(
+                numSteps: numSteps,
+                referenceAudio: wave.samples,
+                referenceSampleRate: wave.sampleRate,
+                extra: <String, Object>{
+                  'max_reference_audio_len': 12,
+                  'temperature': temperature,
+                  'seed': seed + seedOffset + attempt * 7919,
+                  // Bound each internally split sentence so a missed stop
+                  // token cannot occupy the serial worker indefinitely.
+                  'max_char_in_sentence': 100,
+                  'max_frames': 160,
+                },
+              );
+              final audio = engine.generateWithConfig(
+                text: phrase,
+                config: genConfig,
+              );
+              sampleRate = audio.sampleRate;
+              final maxSamples = (plausibleSeconds * sampleRate).round();
+              if (sampleRate > 0 && audio.samples.length <= maxSamples) {
+                return audio.samples;
+              }
+            }
+            return null;
+          }
 
-          // Runaway backstop: if the model kept generating well past a
-          // plausible duration for this much text, chop the trailing noise.
-          // Healthy narration runs ~15 chars/sec; we allow a very generous
-          // 10 chars/sec plus 4s slack so real speech is never cut — only a
-          // runaway noise tail is removed.
-          final text = map['text'] as String;
-          final plausibleSeconds = text.length / 10.0 + 4.0;
-          final maxSamples = (plausibleSeconds * audio.sampleRate).round();
-          final bounded = audio.samples.length > maxSamples
-              ? Float32List.sublistView(audio.samples, 0, maxSamples)
-              : audio.samples;
+          var generated = generatePlausible(text, seedOffset: 0, attempts: 1);
+          if (generated == null) {
+            final parts = <Float32List>[];
+            final phrases = _splitTtsRetryPhrases(text);
+            for (var i = 0; i < phrases.length; i++) {
+              final part = generatePlausible(
+                phrases[i],
+                seedOffset: (i + 1) * 104729,
+                attempts: 2,
+              );
+              if (part == null) {
+                throw StateError(
+                  'PocketTTS produced implausibly long audio for a retry '
+                  'phrase.',
+                );
+              }
+              parts.add(trimAndFadeClip(part, sampleRate));
+            }
+            generated = _joinTtsPhrases(parts, sampleRate);
+          }
+          stopwatch.stop();
 
           // Trim edge silence and fade the clip so consecutive units don't
           // click ("cough") at the seam when played back-to-back.
-          final samples = trimAndFadeClip(bounded, audio.sampleRate);
+          final samples = trimAndFadeClip(generated, sampleRate);
 
           sherpa_onnx.writeWave(
             filename: map['out'] as String,
             samples: samples,
-            sampleRate: audio.sampleRate,
+            sampleRate: sampleRate,
           );
 
-          final seconds = audio.sampleRate > 0
-              ? samples.length / audio.sampleRate
-              : 0.0;
+          final seconds = sampleRate > 0 ? samples.length / sampleRate : 0.0;
 
           toMain.send(<String, dynamic>{
             'id': id,
-            'sampleRate': audio.sampleRate,
+            'sampleRate': sampleRate,
             'audioSeconds': seconds,
             'generateMillis': stopwatch.elapsedMilliseconds,
           });
@@ -297,4 +328,45 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
       toMain.send(<String, dynamic>{'id': id, 'error': e.toString()});
     }
   }
+}
+
+/// Splits a rejected utterance into shorter retry phrases, preferring clause
+/// punctuation and then whitespace so the fallback keeps natural prosody.
+List<String> _splitTtsRetryPhrases(String text, {int maxChars = 80}) {
+  final phrases = <String>[];
+  var remaining = text.trim();
+  while (remaining.length > maxChars) {
+    var cut = -1;
+    for (var i = maxChars; i >= maxChars ~/ 2; i--) {
+      if (',;:'.contains(remaining[i])) {
+        cut = i + 1;
+        break;
+      }
+    }
+    if (cut < 0) {
+      cut = remaining.lastIndexOf(' ', maxChars);
+    }
+    if (cut <= 0) cut = maxChars;
+    phrases.add(remaining.substring(0, cut).trim());
+    remaining = remaining.substring(cut).trim();
+  }
+  if (remaining.isNotEmpty) phrases.add(remaining);
+  return phrases;
+}
+
+/// Joins independently faded retry phrases with a short natural pause.
+Float32List _joinTtsPhrases(List<Float32List> phrases, int sampleRate) {
+  if (phrases.isEmpty) return Float32List(0);
+  if (phrases.length == 1) return phrases.single;
+  final pauseSamples = (sampleRate * 0.08).round();
+  final totalSamples =
+      phrases.fold<int>(0, (sum, part) => sum + part.length) +
+      pauseSamples * (phrases.length - 1);
+  final joined = Float32List(totalSamples);
+  var offset = 0;
+  for (final phrase in phrases) {
+    joined.setRange(offset, offset + phrase.length, phrase);
+    offset += phrase.length + pauseSamples;
+  }
+  return joined;
 }

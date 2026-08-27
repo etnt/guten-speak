@@ -43,7 +43,8 @@ void main() {
 
     final cache = file(BookContentLoader.contentCacheName);
     expect(await cache.exists(), isTrue);
-    final decoded = jsonDecode(await cache.readAsString()) as Map<String, dynamic>;
+    final decoded =
+        jsonDecode(await cache.readAsString()) as Map<String, dynamic>;
     expect(decoded['version'], 1);
   });
 
@@ -78,9 +79,9 @@ void main() {
   });
 
   test('falls back to text.txt when no epub exists', () async {
-    await file(BookContentLoader.textFileName).writeAsString(
-      'CHAPTER I\n\nOnce upon a time.\n\nThe end.',
-    );
+    await file(
+      BookContentLoader.textFileName,
+    ).writeAsString('CHAPTER I\n\nOnce upon a time.\n\nThe end.');
 
     final content = await loader.load(bookDir);
 
@@ -89,9 +90,6 @@ void main() {
   });
 
   test('throws CacheFailure when the book directory is empty', () async {
-    expect(
-      () => loader.load(bookDir),
-      throwsA(isA<CacheFailure>()),
-    );
+    expect(() => loader.load(bookDir), throwsA(isA<CacheFailure>()));
   });
 }

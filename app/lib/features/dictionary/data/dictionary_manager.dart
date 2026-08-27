@@ -85,7 +85,12 @@ class DictionaryManager {
     Object? lastError;
     for (final url in urls) {
       try {
-        await _download(url, target, onProgress: onProgress, isCancelled: isCancelled);
+        await _download(
+          url,
+          target,
+          onProgress: onProgress,
+          isCancelled: isCancelled,
+        );
         return;
       } on DictionaryDownloadCancelled {
         rethrow;
@@ -124,7 +129,9 @@ class DictionaryManager {
         }
       }
       if (response.statusCode != 200 && response.statusCode != 206) {
-        throw Exception('Download failed: HTTP ${response.statusCode} for $url');
+        throw Exception(
+          'Download failed: HTTP ${response.statusCode} for $url',
+        );
       }
 
       final contentLength = response.contentLength;

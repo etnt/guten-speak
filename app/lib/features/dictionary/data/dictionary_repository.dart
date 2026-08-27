@@ -22,7 +22,8 @@ class DictionaryRepository {
         columns: ['pos', 'definition', 'examples', 'synonyms'],
         where: 'word = ?',
         whereArgs: [candidate],
-        orderBy: 'CASE pos '
+        orderBy:
+            'CASE pos '
             "WHEN 'n' THEN 0 "
             "WHEN 'v' THEN 1 "
             "WHEN 'a' THEN 2 "
@@ -38,11 +39,11 @@ class DictionaryRepository {
   }
 
   DictionarySense _fromRow(Map<String, Object?> row) => DictionarySense(
-        pos: (row['pos'] as String?) ?? '',
-        definition: (row['definition'] as String?) ?? '',
-        examples: _split(row['examples'] as String?),
-        synonyms: _split(row['synonyms'] as String?),
-      );
+    pos: (row['pos'] as String?) ?? '',
+    definition: (row['definition'] as String?) ?? '',
+    examples: _split(row['examples'] as String?),
+    synonyms: _split(row['synonyms'] as String?),
+  );
 
   List<String> _split(String? value) {
     if (value == null || value.isEmpty) return const [];

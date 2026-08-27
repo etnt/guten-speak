@@ -65,5 +65,5 @@ class NarrationSpeedNotifier extends StateNotifier<double> {
 
 final narrationSpeedProvider =
     StateNotifierProvider<NarrationSpeedNotifier, double>(
-  (ref) => NarrationSpeedNotifier(),
-);
+      (ref) => NarrationSpeedNotifier(),
+    );

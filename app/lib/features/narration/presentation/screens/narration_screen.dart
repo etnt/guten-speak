@@ -278,6 +278,17 @@ class _PlayerCard extends ConsumerWidget {
       return _ContinueCard(units: units, unitIndex: playback.unitIndex);
     }
 
+    if (!isCurrent) {
+      return _StartCard(
+        bookId: bookId,
+        bookTitle: bookTitle,
+        units: units,
+        voice: voice,
+      );
+    }
+
+    final preparedAhead = playback.preparedAhead;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -292,16 +303,26 @@ class _PlayerCard extends ConsumerWidget {
                 ),
                 const Spacer(),
                 _SpeedButton(
-                  speed: isCurrent ? playback.speed : 1.0,
-                  onChanged: voice == null
-                      ? null
-                      : (speed) => unawaited(_setSpeed(ref, speed)),
+                  speed: playback.speed,
+                  onChanged: (speed) => unawaited(_setSpeed(ref, speed)),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: unitCount == 0 ? 0 : (unitIndex + 1) / unitCount,
+            _UnitScrubber(
+              unitIndex: unitIndex,
+              unitCount: unitCount,
+              onSeek: (unit) => unawaited(_seekToUnit(ref, unit)),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              preparedAhead > 0
+                  ? '$preparedAhead unit${preparedAhead == 1 ? '' : 's'} ready '
+                        'ahead'
+                  : (isPlaying ? 'Rendering ahead…' : 'Ready to play'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -311,36 +332,24 @@ class _PlayerCard extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 16),
-            if (!isCurrent) ...[
-              const _HeadStartSelector(),
-              const SizedBox(height: 8),
-            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
                   iconSize: 36,
-                  onPressed: voice == null || !isCurrent
-                      ? null
-                      : () => unawaited(_skipPrevious(ref)),
+                  onPressed: () => unawaited(_skipPrevious(ref)),
                   icon: const Icon(Icons.skip_previous),
                 ),
                 const SizedBox(width: 12),
                 _PlayPauseButton(
                   isPlaying: isPlaying,
                   isBuffering: isBuffering,
-                  onPressed: voice == null
-                      ? null
-                      : () => unawaited(
-                          _togglePlay(ref, playback, voice, isCurrent),
-                        ),
+                  onPressed: () => unawaited(_togglePlay(ref, playback)),
                 ),
                 const SizedBox(width: 12),
                 IconButton(
                   iconSize: 36,
-                  onPressed: voice == null || !isCurrent
-                      ? null
-                      : () => unawaited(_skipNext(ref)),
+                  onPressed: () => unawaited(_skipNext(ref)),
                   icon: const Icon(Icons.skip_next),
                 ),
               ],
@@ -372,25 +381,12 @@ class _PlayerCard extends ConsumerWidget {
   Future<void> _togglePlay(
     WidgetRef ref,
     NarrationPlaybackState playback,
-    Voice voice,
-    bool isCurrent,
   ) async {
     final handler = await ref.read(narrationAudioHandlerProvider.future);
-    if (isCurrent && playback.isPlaying) {
+    if (playback.isPlaying) {
       await handler.pause();
-    } else if (isCurrent) {
-      await handler.play();
     } else {
-      await handler.load(
-        bookId: bookId,
-        bookTitle: bookTitle,
-        voiceId: voice.id,
-        voiceName: voice.name,
-        voiceWavPath: voice.wavPath,
-        units: units,
-        prepLead: ref.read(headStartProvider),
-        speed: ref.read(narrationSpeedProvider),
-      );
+      await handler.play();
     }
   }
 
@@ -404,9 +400,117 @@ class _PlayerCard extends ConsumerWidget {
     await handler.skipToPrevious();
   }
 
+  Future<void> _seekToUnit(WidgetRef ref, int unit) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.seekToUnit(unit);
+  }
+
   Future<void> _setSpeed(WidgetRef ref, double speed) async {
     final handler = await ref.read(narrationAudioHandlerProvider.future);
     await handler.setSpeed(speed);
+  }
+}
+
+/// Shown before a book/voice is loaded: pick the head start, then explicitly
+/// prepare. Nothing plays until the user presses Play afterwards.
+class _StartCard extends ConsumerWidget {
+  const _StartCard({
+    required this.bookId,
+    required this.bookTitle,
+    required this.units,
+    required this.voice,
+  });
+
+  final int bookId;
+  final String bookTitle;
+  final List<NarrationUnit> units;
+  final Voice? voice;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final voice = this.voice;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Ready to narrate', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              '${units.length} units in this book. Your device renders a head '
+              'start first, then waits for you to press Play — nothing starts '
+              'on its own.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            const _HeadStartSelector(),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: voice == null
+                  ? null
+                  : () => unawaited(_prepare(ref, voice)),
+              icon: const Icon(Icons.playlist_add_check),
+              label: const Text('Prepare head start'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _prepare(WidgetRef ref, Voice voice) async {
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    await handler.load(
+      bookId: bookId,
+      bookTitle: bookTitle,
+      voiceId: voice.id,
+      voiceName: voice.name,
+      voiceWavPath: voice.wavPath,
+      units: units,
+      prepLead: ref.read(headStartProvider),
+      speed: ref.read(narrationSpeedProvider),
+      autoplay: false,
+    );
+  }
+}
+
+/// A draggable position bar over the book's units. Dragging previews the target
+/// unit; releasing seeks there (which may briefly re-render an evicted unit).
+class _UnitScrubber extends StatefulWidget {
+  const _UnitScrubber({
+    required this.unitIndex,
+    required this.unitCount,
+    required this.onSeek,
+  });
+
+  final int unitIndex;
+  final int unitCount;
+  final ValueChanged<int> onSeek;
+
+  @override
+  State<_UnitScrubber> createState() => _UnitScrubberState();
+}
+
+class _UnitScrubberState extends State<_UnitScrubber> {
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.unitCount > 1;
+    final max = enabled ? (widget.unitCount - 1).toDouble() : 1.0;
+    final value = (_dragValue ?? widget.unitIndex.toDouble()).clamp(0.0, max);
+    return Slider(
+      value: value,
+      max: max,
+      label: 'Unit ${value.round() + 1}',
+      onChanged: enabled ? (v) => setState(() => _dragValue = v) : null,
+      onChangeEnd: (v) {
+        setState(() => _dragValue = null);
+        widget.onSeek(v.round());
+      },
+    );
   }
 }
 
@@ -543,10 +647,10 @@ class _PreparingCard extends ConsumerWidget {
             Text('Preparing narration', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              'Your device is rendering a head start so playback runs smoothly '
-              'without pauses. This happens once for this stretch of the book — '
-              'you can start now, but a very long uninterrupted listen may hit a '
-              'brief catch-up pause.',
+              'Your device is rendering a head start so playback runs smoothly. '
+              'When it is ready, playback waits for you to press Play — or '
+              'start now before it finishes (a long listen may hit a brief '
+              'catch-up pause).',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),

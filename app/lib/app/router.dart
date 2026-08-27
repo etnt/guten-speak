@@ -9,6 +9,7 @@ import '../features/library/presentation/screens/library_screen.dart';
 import '../features/narration/presentation/screens/narration_screen.dart';
 import '../features/reader/presentation/screens/reader_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
+import '../features/storage/presentation/screens/storage_screen.dart';
 import '../features/voices/presentation/screens/voices_screen.dart';
 import 'scaffold_with_nav_bar.dart';
 
@@ -106,6 +107,11 @@ final appRouter = GoRouter(
       path: AppConstants.routeVoices,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const VoicesScreen(),
+    ),
+    GoRoute(
+      path: AppConstants.routeStorage,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const StorageScreen(),
     ),
   ],
 );

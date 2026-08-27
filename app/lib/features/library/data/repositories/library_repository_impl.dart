@@ -70,7 +70,8 @@ class LibraryRepositoryImpl implements LibraryRepository {
         onProgress: onProgress,
         cancelToken: cancelToken,
       );
-      final storedPath = epubPath ??
+      final storedPath =
+          epubPath ??
           await _downloadPlainText(
             book: book,
             bookDir: bookDir,

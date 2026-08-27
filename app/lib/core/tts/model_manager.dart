@@ -66,6 +66,29 @@ class ModelManager {
   /// Returns the resolved model paths (whether or not the model is installed).
   Future<PocketModelPaths> paths() async => _pathsFor((await _modelDir()).path);
 
+  /// Total bytes the model occupies on disk (the extracted payload plus any
+  /// leftover partial download archive). Zero when nothing is installed.
+  Future<int> onDiskBytes() async {
+    final root = await _modelsRoot();
+    if (!root.existsSync()) return 0;
+    var total = 0;
+    await for (final entity in root.list(recursive: true, followLinks: false)) {
+      if (entity is File) {
+        total += await entity.length();
+      }
+    }
+    return total;
+  }
+
+  /// Deletes the installed model (and any partial download) from disk. The next
+  /// narration opt-in re-downloads it. Safe to call when nothing is installed.
+  Future<void> deleteFromDisk() async {
+    final root = await _modelsRoot();
+    if (root.existsSync()) {
+      await root.delete(recursive: true);
+    }
+  }
+
   /// Returns the model paths, downloading + extracting the archive if missing.
   ///
   /// [onStatus] receives human-readable progress messages. [onProgress]
@@ -123,6 +146,11 @@ class ModelManager {
   Future<Directory> _modelDir() async {
     final support = await getApplicationSupportDirectory();
     return Directory('${support.path}/models/$_modelName');
+  }
+
+  Future<Directory> _modelsRoot() async {
+    final support = await getApplicationSupportDirectory();
+    return Directory('${support.path}/models');
   }
 
   /// Decompresses a `.tar.bz2` archive and extracts it into [destDir].

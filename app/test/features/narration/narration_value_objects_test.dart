@@ -123,7 +123,6 @@ void main() {
         voiceId: 'v1',
         unitIndex: 2,
         unitCount: 20,
-        speed: 1.0,
       );
       final next = state.copyWith(
         status: NarrationStatus.playing,
@@ -148,6 +147,18 @@ void main() {
       expect(failed.copyWith(error: 'again').error, 'again');
       // Errors are transient: a plain copy clears them.
       expect(failed.copyWith(status: NarrationStatus.playing).error, isNull);
+    });
+
+    test('preparedAhead is the rendered lead over the play head', () {
+      const none = NarrationPlaybackState(unitIndex: 5, renderedThrough: 5);
+      expect(none.preparedAhead, 0);
+
+      const ahead = NarrationPlaybackState(unitIndex: 5, renderedThrough: 12);
+      expect(ahead.preparedAhead, 7);
+
+      // A frontier behind the play head never reports a negative lead.
+      const behind = NarrationPlaybackState(unitIndex: 5, renderedThrough: 2);
+      expect(behind.preparedAhead, 0);
     });
   });
 }

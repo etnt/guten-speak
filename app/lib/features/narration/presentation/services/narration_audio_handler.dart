@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../../../core/tts/tts_service.dart';
@@ -80,6 +81,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
   int _prepTarget = 0;
   Duration _resumeAt = Duration.zero;
   final Set<int> _preparedAhead = <int>{};
+
   int _genMsSum = 0;
   int _genCount = 0;
 
@@ -104,9 +106,11 @@ class NarrationAudioHandler extends BaseAudioHandler {
     int prepLead = 8,
     double speed = 1.0,
     bool autoplay = true,
+    int? startUnit,
   }) async {
     if (_bookId == bookId && _voiceId == voiceId && _scheduler != null) {
-      // Same session already loaded — just (re)start playback.
+      // Same session already loaded — just seek/(re)start playback.
+      if (startUnit != null) await seekToUnit(startUnit);
       _playIntent = autoplay;
       if (autoplay) await play();
       return;
@@ -137,6 +141,10 @@ class NarrationAudioHandler extends BaseAudioHandler {
     if (saved != null && saved.voiceId == voiceId) {
       _index = saved.unitIndex.clamp(0, units.length - 1);
       startAt = Duration(milliseconds: saved.positionMs);
+    }
+    if (startUnit != null) {
+      _index = startUnit.clamp(0, units.length - 1);
+      startAt = Duration.zero;
     }
 
     _prepLead = prepLead < 1 ? 1 : prepLead;
@@ -177,8 +185,22 @@ class NarrationAudioHandler extends BaseAudioHandler {
     }
     _prepTarget = math.min(_prepLead, _units.length - _index);
     _preparing = true;
+    final scheduler = _scheduler;
+    if (scheduler != null) {
+      for (var i = _index; i < _index + _prepTarget; i++) {
+        if (scheduler.isReady(i)) _preparedAhead.add(i);
+      }
+    }
     _emitPreparing();
-    _scheduler?.seekTo(_index);
+    scheduler?.seekTo(_index);
+    if (_preparedAhead.length >= _prepTarget) {
+      unawaited(_beginPlayback());
+    } else if (scheduler != null) {
+      // `seekTo` is intentionally a no-op when the head is unchanged; `start`
+      // still re-pumps so cached clips not yet represented in its ready set are
+      // discovered and reported to this preparation pass.
+      unawaited(scheduler.start());
+    }
   }
 
   /// Emits the current head-start preparation snapshot (progress + rough ETA).
@@ -211,7 +233,10 @@ class NarrationAudioHandler extends BaseAudioHandler {
   /// Skips the remaining head-start buffering and begins playback now. If the
   /// current unit isn't rendered yet, playback shows a brief buffering state
   /// and auto-resumes when it lands.
-  Future<void> startPlaybackNow() => _beginPlayback();
+  Future<void> startPlaybackNow() {
+    _playIntent = true;
+    return _beginPlayback();
+  }
 
   /// Playback reached the end of the prepared head start and the next unit
   /// isn't rendered yet. Stop the player at once (so no unrendered garbage is
@@ -252,6 +277,10 @@ class NarrationAudioHandler extends BaseAudioHandler {
   }
 
   void _onSchedulerEvent(SynthEvent event) {
+    debugPrint(
+      'GS_NARR event kind=${event.kind} unit=${event.unitIndex} '
+      'idx=$_index status=${_state.status} preparing=$_preparing',
+    );
     if (event.kind == SynthEventKind.failed) {
       if (_preparing || event.unitIndex == _index) {
         _preparing = false;
@@ -276,9 +305,16 @@ class NarrationAudioHandler extends BaseAudioHandler {
       return;
     }
 
-    if (event.unitIndex != _index) return;
-    if (_state.status == NarrationStatus.buffering) {
+    if (event.unitIndex == _index &&
+        _state.status == NarrationStatus.buffering) {
       unawaited(_playCurrent());
+      return;
+    }
+
+    // A look-ahead unit landed; refresh how far ahead is prepared.
+    if (_state.status == NarrationStatus.playing ||
+        _state.status == NarrationStatus.paused) {
+      _emit();
     }
   }
 
@@ -298,6 +334,11 @@ class NarrationAudioHandler extends BaseAudioHandler {
 
     final unit = _units[_index];
     final path = await _cache.cachedPath(bookId, voiceId, unit);
+    debugPrint(
+      'GS_NARR _playCurrent idx=$_index path=${path != null} '
+      'rebuild=$rebuildLeadIfMissing playIntent=$_playIntent '
+      'ready=${_scheduler?.isReady(_index)}',
+    );
     if (path == null) {
       if (rebuildLeadIfMissing) {
         // Playback caught up to the render frontier. Stop immediately (so no
@@ -321,12 +362,17 @@ class NarrationAudioHandler extends BaseAudioHandler {
       await _player.seek(at);
     }
     if (_playIntent) {
-      await _player.play();
+      // Emit `playing` *before* starting playback: `AudioPlayer.play()` returns
+      // a future that only completes when the clip finishes, so awaiting it here
+      // would delay the state update until the audio had already ended (leaving
+      // the UI stuck on the prior buffering state while sound is heard).
+      // Completion is handled by the processing-state listener, which advances.
       _emit(
         status: NarrationStatus.playing,
         unitIndex: _index,
         currentText: unit.text,
       );
+      unawaited(_player.play());
     } else {
       _emit(
         status: NarrationStatus.paused,
@@ -345,7 +391,9 @@ class NarrationAudioHandler extends BaseAudioHandler {
     _index++;
     _scheduler?.seekTo(_index);
     await _saveProgress();
-    await _playCurrent();
+    // If the next unit isn't rendered yet, buffer and auto-resume when it
+    // lands (never hard-stop mid-narration and force a manual tap to continue).
+    await _playCurrent(rebuildLeadIfMissing: false);
   }
 
   Future<void> _complete() async {
@@ -375,8 +423,8 @@ class NarrationAudioHandler extends BaseAudioHandler {
       await _playCurrent();
       return;
     }
-    await _player.play();
     _emit(status: NarrationStatus.playing);
+    unawaited(_player.play());
   }
 
   @override
@@ -420,7 +468,9 @@ class NarrationAudioHandler extends BaseAudioHandler {
     await _playCurrent();
   }
 
-  /// Jumps to an arbitrary unit (e.g. tap-to-seek from the reader in Phase F).
+  /// Jumps to an arbitrary unit from the Listen scrubber. If the target clip
+  /// isn't rendered yet, playback stops to let the user pick a new head start
+  /// before continuing (the Listen page's explicit prepare model).
   Future<void> seekToUnit(int index) async {
     if (_units.isEmpty) return;
     _index = index.clamp(0, _units.length - 1);
@@ -429,10 +479,53 @@ class NarrationAudioHandler extends BaseAudioHandler {
     await _playCurrent();
   }
 
+  /// Jumps to [index] for the reader's "read from here" gesture. Stops the
+  /// current clip first (so no stale tail keeps playing), then rebuilds the
+  /// selected head start around the target before playback. This avoids
+  /// starting from one isolated clip and immediately stalling inside the next
+  /// paragraph while synthesis catches up.
+  Future<void> readFrom(int index) async {
+    if (_units.isEmpty) return;
+    await _player.stop();
+    _preparing = false;
+    _index = index.clamp(0, _units.length - 1);
+    debugPrint('GS_NARR readFrom idx=$_index');
+    _playIntent = true;
+    await _saveProgress();
+    _enterPreparing(resumeAt: Duration.zero, resetStats: true);
+  }
+
   @override
   Future<void> setSpeed(double speed) async {
     await _player.setSpeed(speed);
     _emit(speed: speed);
+  }
+
+  /// Highest unit index that, with the current unit, forms a contiguous run of
+  /// clips still on disk — how far ahead playback can run without buffering.
+  /// Reads the scheduler's live ready set (pruned as the rolling window slides)
+  /// so the "prepared" band never claims an already-evicted unit is ready.
+  /// Returns `_index - 1` (nothing ready) when the current unit itself isn't
+  /// rendered yet, so the band never covers an unready unit.
+  int _renderedFrontier() {
+    final scheduler = _scheduler;
+    if (scheduler == null || !scheduler.isReady(_index)) return _index - 1;
+    var i = _index;
+    while (scheduler.isReady(i + 1)) {
+      i++;
+    }
+    return i;
+  }
+
+  /// Highest unit index the scheduler intends to have ready ahead of the play
+  /// head (the look-ahead window edge) — how far the "going to prepare" band
+  /// reaches beyond what is already rendered.
+  int _plannedFrontier() {
+    final scheduler = _scheduler;
+    if (scheduler == null || _units.isEmpty) return _index;
+    final planned = _index + scheduler.lookAhead;
+    final last = _units.length - 1;
+    return planned > last ? last : planned;
   }
 
   Future<void> _saveProgress() async {
@@ -475,6 +568,12 @@ class NarrationAudioHandler extends BaseAudioHandler {
       preparedCount: preparedCount,
       prepTarget: prepTarget,
       etaSeconds: etaSeconds,
+      renderedThrough: _renderedFrontier(),
+      plannedThrough: _plannedFrontier(),
+    );
+    debugPrint(
+      'GS_NARR emit status=${_state.status} idx=${_state.unitIndex} '
+      'rendered=${_state.renderedThrough} planned=${_state.plannedThrough}',
     );
     _broadcast();
   }

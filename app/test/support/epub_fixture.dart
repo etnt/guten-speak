@@ -20,12 +20,12 @@ Uint8List buildEpub(Map<String, String> entries) {
 
 /// A minimal, valid EPUB 3 (nav) fixture with two short chapters.
 Uint8List sampleEpub() => buildEpub(const <String, String>{
-      'META-INF/container.xml': _container,
-      'OEBPS/content.opf': _opf,
-      'OEBPS/nav.xhtml': _nav,
-      'OEBPS/chap1.xhtml': _chap1,
-      'OEBPS/chap2.xhtml': _chap2,
-    });
+  'META-INF/container.xml': _container,
+  'OEBPS/content.opf': _opf,
+  'OEBPS/nav.xhtml': _nav,
+  'OEBPS/chap1.xhtml': _chap1,
+  'OEBPS/chap2.xhtml': _chap2,
+});
 
 const _container = '''
 <?xml version="1.0" encoding="UTF-8"?>

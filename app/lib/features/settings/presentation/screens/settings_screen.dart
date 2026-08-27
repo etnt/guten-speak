@@ -76,15 +76,22 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(),
           const _SectionHeader('Reading'),
           const _DictionaryTile(),
+          const Divider(),
+          const _SectionHeader('Storage'),
+          ListTile(
+            leading: const Icon(Icons.sd_storage_outlined),
+            title: const Text('Manage storage'),
+            subtitle: const Text('Model, narrated audio and voice sizes'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(AppConstants.routeStorage),
+          ),
         ],
       ),
     );
   }
 
   static String _formatSpeed(double value) =>
-      value == value.truncateToDouble()
-          ? '${value.toInt()}×'
-          : '$value×';
+      value == value.truncateToDouble() ? '${value.toInt()}×' : '$value×';
 }
 
 class _SectionHeader extends StatelessWidget {

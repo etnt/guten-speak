@@ -81,13 +81,15 @@ void main() {
 </html>
 ''';
 
-      doc = const EpubParser().parse(buildEpub({
-        'META-INF/container.xml': _container,
-        'OEBPS/content.opf': opf,
-        'OEBPS/nav.xhtml': nav,
-        'OEBPS/chap1.xhtml': chap1,
-        'OEBPS/chap2.xhtml': chap2,
-      }));
+      doc = const EpubParser().parse(
+        buildEpub({
+          'META-INF/container.xml': _container,
+          'OEBPS/content.opf': opf,
+          'OEBPS/nav.xhtml': nav,
+          'OEBPS/chap1.xhtml': chap1,
+          'OEBPS/chap2.xhtml': chap2,
+        }),
+      );
     });
 
     test('reads metadata', () {
@@ -96,16 +98,18 @@ void main() {
       expect(doc.language, 'en');
     });
 
-    test('extracts paragraphs in spine order, dropping script/style/images',
-        () {
-      expect(doc.paragraphs, <String>[
-        'Chapter One',
-        'First paragraph of chapter one.',
-        'Second paragraph with newlines.',
-        'Chapter Two',
-        'Wrapped paragraph without p tag.',
-      ]);
-    });
+    test(
+      'extracts paragraphs in spine order, dropping script/style/images',
+      () {
+        expect(doc.paragraphs, <String>[
+          'Chapter One',
+          'First paragraph of chapter one.',
+          'Second paragraph with newlines.',
+          'Chapter Two',
+          'Wrapped paragraph without p tag.',
+        ]);
+      },
+    );
 
     test('maps the nav TOC to paragraph indices', () {
       expect(doc.toc, <TocEntry>[
@@ -160,13 +164,15 @@ void main() {
 </body></html>
 ''';
 
-      final doc = const EpubParser().parse(buildEpub({
-        'META-INF/container.xml': _container,
-        'OEBPS/content.opf': opf,
-        'OEBPS/toc.ncx': ncx,
-        'OEBPS/chap1.xhtml': chap1,
-        'OEBPS/chap2.xhtml': chap2,
-      }));
+      final doc = const EpubParser().parse(
+        buildEpub({
+          'META-INF/container.xml': _container,
+          'OEBPS/content.opf': opf,
+          'OEBPS/toc.ncx': ncx,
+          'OEBPS/chap1.xhtml': chap1,
+          'OEBPS/chap2.xhtml': chap2,
+        }),
+      );
 
       expect(doc.title, 'Old Book');
       expect(doc.paragraphs, <String>[
@@ -215,11 +221,13 @@ void main() {
 </html>
 ''';
 
-      final doc = const EpubParser().parse(buildEpub({
-        'META-INF/container.xml': _container,
-        'OEBPS/content.opf': opf,
-        'OEBPS/chap1.xhtml': chap1,
-      }));
+      final doc = const EpubParser().parse(
+        buildEpub({
+          'META-INF/container.xml': _container,
+          'OEBPS/content.opf': opf,
+          'OEBPS/chap1.xhtml': chap1,
+        }),
+      );
 
       expect(doc.paragraphs, <String>[
         'The Repairman',
@@ -228,12 +236,13 @@ void main() {
       ]);
     });
 
-    test('a real <pre> block of preformatted text stays a single paragraph',
-        () {
-      // A genuine <pre> with only inline/text content (e.g. a poem or code
-      // block) should remain one paragraph — the fix only recurses when the
-      // block actually contains nested block elements.
-      const opf = '''
+    test(
+      'a real <pre> block of preformatted text stays a single paragraph',
+      () {
+        // A genuine <pre> with only inline/text content (e.g. a poem or code
+        // block) should remain one paragraph — the fix only recurses when the
+        // block actually contains nested block elements.
+        const opf = '''
 <?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0"
     unique-identifier="bookid">
@@ -248,7 +257,7 @@ void main() {
   </spine>
 </package>
 ''';
-      const chap1 = '''
+        const chap1 = '''
 <html xmlns="http://www.w3.org/1999/xhtml">
   <body>
     <h1>A Poem</h1>
@@ -259,17 +268,20 @@ Line three</pre>
 </html>
 ''';
 
-      final doc = const EpubParser().parse(buildEpub({
-        'META-INF/container.xml': _container,
-        'OEBPS/content.opf': opf,
-        'OEBPS/chap1.xhtml': chap1,
-      }));
+        final doc = const EpubParser().parse(
+          buildEpub({
+            'META-INF/container.xml': _container,
+            'OEBPS/content.opf': opf,
+            'OEBPS/chap1.xhtml': chap1,
+          }),
+        );
 
-      expect(doc.paragraphs, <String>[
-        'A Poem',
-        'Line one Line two Line three',
-      ]);
-    });
+        expect(doc.paragraphs, <String>[
+          'A Poem',
+          'Line one Line two Line three',
+        ]);
+      },
+    );
   });
 
   group('EpubParser (errors)', () {

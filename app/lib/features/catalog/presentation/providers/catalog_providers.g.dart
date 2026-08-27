@@ -416,7 +416,7 @@ class _BookDetailProviderElement
   int get id => (origin as BookDetailProvider).id;
 }
 
-String _$catalogImportHash() => r'828ed8d3e2dfb7ece291d64e0259e6625110ebd8';
+String _$catalogImportHash() => r'e405fef6c0dd1362ef5efa2087e2cd017430695c';
 
 /// Drives the one-time import of the catalog into the local index and exposes
 /// its progress. [ensure] is idempotent — a no-op once the catalog is ready or

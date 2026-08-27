@@ -104,6 +104,11 @@ class SynthCacheDataSource {
     );
   }
 
+  /// Removes every cached-clip row (used to clear all narrated audio).
+  Future<void> deleteAll() async {
+    await _db.delete(Db.synthCache);
+  }
+
   SynthCacheEntry _fromRow(Map<String, Object?> row) {
     return SynthCacheEntry(
       bookId: row[Db.synthBookId]! as int,

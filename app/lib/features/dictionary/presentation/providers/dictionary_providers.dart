@@ -31,20 +31,22 @@ final dictionaryDatabaseProvider = FutureProvider<Database?>((ref) async {
 });
 
 /// The repository over the open database, or null when not installed.
-final dictionaryRepositoryProvider =
-    FutureProvider<DictionaryRepository?>((ref) async {
+final dictionaryRepositoryProvider = FutureProvider<DictionaryRepository?>((
+  ref,
+) async {
   final db = await ref.watch(dictionaryDatabaseProvider.future);
   if (db == null) return null;
   return DictionaryRepository(db);
 });
 
 /// Definitions for a single [word]. Empty when not installed or not found.
-final wordLookupProvider =
-    FutureProvider.family<List<DictionarySense>, String>((ref, word) async {
-  final repo = await ref.watch(dictionaryRepositoryProvider.future);
-  if (repo == null) return const [];
-  return repo.lookup(word);
-});
+final wordLookupProvider = FutureProvider.family<List<DictionarySense>, String>(
+  (ref, word) async {
+    final repo = await ref.watch(dictionaryRepositoryProvider.future);
+    if (repo == null) return const [];
+    return repo.lookup(word);
+  },
+);
 
 /// Progress of the one-time dictionary download.
 enum DictionaryDownloadPhase { idle, downloading, error }
@@ -66,7 +68,7 @@ class DictionaryDownloadState {
 class DictionaryDownloadController
     extends StateNotifier<DictionaryDownloadState> {
   DictionaryDownloadController(this._ref)
-      : super(const DictionaryDownloadState());
+    : super(const DictionaryDownloadState());
 
   final Ref _ref;
   bool _cancelRequested = false;
@@ -78,7 +80,9 @@ class DictionaryDownloadController
       phase: DictionaryDownloadPhase.downloading,
     );
     try {
-      await _ref.read(dictionaryManagerProvider).ensureDictionary(
+      await _ref
+          .read(dictionaryManagerProvider)
+          .ensureDictionary(
             onProgress: (fraction) => state = DictionaryDownloadState(
               phase: DictionaryDownloadPhase.downloading,
               fraction: fraction,
@@ -110,7 +114,8 @@ class DictionaryDownloadController
   }
 }
 
-final dictionaryDownloadControllerProvider = StateNotifierProvider<
-    DictionaryDownloadController, DictionaryDownloadState>(
-  DictionaryDownloadController.new,
-);
+final dictionaryDownloadControllerProvider =
+    StateNotifierProvider<
+      DictionaryDownloadController,
+      DictionaryDownloadState
+    >(DictionaryDownloadController.new);

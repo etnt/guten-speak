@@ -15,6 +15,9 @@ import '../../../dictionary/presentation/widgets/dictionary_lookup_sheet.dart';
 import '../../../library/presentation/providers/library_providers.dart';
 import '../../../narration/domain/entities/narration_playback.dart';
 import '../../../narration/presentation/providers/narration_player_providers.dart';
+import '../../../narration/presentation/providers/narration_settings_providers.dart';
+import '../../../narration/presentation/providers/tts_providers.dart';
+import '../../../voices/presentation/providers/voice_providers.dart';
 import '../../domain/entities/reader_content.dart';
 import '../providers/reader_providers.dart';
 import '../providers/reader_settings_provider.dart';
@@ -166,6 +169,38 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     return _units[index].paragraphIndex;
   }
 
+  /// The paragraph through which narration audio is currently prepared ahead of
+  /// the play head (used to shade the "ready" band). Null when not narrating
+  /// this book or the rendered frontier is out of range.
+  int? _preparedThroughParagraph(NarrationPlaybackState? playback) {
+    if (playback == null ||
+        playback.bookId != widget.bookId ||
+        !playback.isActive) {
+      return null;
+    }
+    final through = playback.renderedThrough;
+    if (through < 0 || through >= _units.length) return null;
+    final paragraph = _units[through].paragraphIndex;
+    final paragraphFullyPrepared =
+        through == _units.length - 1 ||
+        _units[through + 1].paragraphIndex != paragraph;
+    return paragraphFullyPrepared ? paragraph : paragraph - 1;
+  }
+
+  /// The paragraph through which narration audio is queued to be prepared (the
+  /// scheduler's look-ahead edge, beyond what is rendered). Null when not
+  /// narrating this book or the frontier is out of range.
+  int? _plannedThroughParagraph(NarrationPlaybackState? playback) {
+    if (playback == null ||
+        playback.bookId != widget.bookId ||
+        !playback.isActive) {
+      return null;
+    }
+    final through = playback.plannedThrough;
+    if (through < 0 || through >= _units.length) return null;
+    return _units[through].paragraphIndex;
+  }
+
   /// The first narration unit at or after [paragraphIndex] (paragraphs with no
   /// speakable units — e.g. dividers — are skipped forward to the next one).
   int? _firstUnitAtOrAfter(int paragraphIndex, int paragraphCount) {
@@ -200,12 +235,85 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (!narrating) {
       return;
     }
+    // A paragraph may contain several narration units. Seeking an active
+    // paragraph to its first unit makes an extra tap during buffering replay
+    // speech the user has already heard.
+    if (index == _narratedParagraph(playback)) {
+      return;
+    }
     final unit = _firstUnitAtOrAfter(index, paragraphCount);
     if (unit == null) {
       return;
     }
     final handler = await ref.read(narrationAudioHandlerProvider.future);
     await handler.seekToUnit(unit);
+  }
+
+  /// Handles a paragraph double-tap. When this book is already narrating:
+  /// double-tapping the paragraph being read toggles play/pause; double-tapping
+  /// another paragraph reads from there. When idle, starts a fresh session from
+  /// the tapped paragraph (needs an installed model and a selected voice).
+  Future<void> _onParagraphReadFromHere(int index, int paragraphCount) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final unit = _firstUnitAtOrAfter(index, paragraphCount);
+    if (unit == null) return;
+
+    final handler = await ref.read(narrationAudioHandlerProvider.future);
+    if (!mounted) return;
+
+    final playback = ref.read(narrationPlaybackProvider).valueOrNull;
+    final loaded =
+        playback != null &&
+        playback.bookId == widget.bookId &&
+        playback.isActive;
+    if (loaded) {
+      if (index == _narratedParagraph(playback)) {
+        // A second double-tap may explicitly start a blue (already rendered)
+        // current paragraph before the rest of the configured head start is
+        // ready. A red current paragraph remains in preparation.
+        if (playback.isPlaying) {
+          await handler.pause();
+        } else if (playback.status == NarrationStatus.paused) {
+          await handler.play();
+        } else if (playback.status == NarrationStatus.preparing &&
+            playback.renderedThrough >= playback.unitIndex) {
+          await handler.startPlaybackNow();
+        }
+        return;
+      }
+      await handler.readFrom(unit);
+      return;
+    }
+
+    final installed = ref.read(modelInstalledProvider).valueOrNull ?? false;
+    if (!installed) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Enable narration on the Listen page first.'),
+        ),
+      );
+      return;
+    }
+    final voice = ref.read(selectedVoiceProvider);
+    if (voice == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Pick a voice on the Listen page first.')),
+      );
+      return;
+    }
+    final content = ref.read(readerContentProvider(widget.bookId)).valueOrNull;
+    if (content == null) return;
+    await handler.load(
+      bookId: widget.bookId,
+      bookTitle: content.book.title,
+      voiceId: voice.id,
+      voiceName: voice.name,
+      voiceWavPath: voice.wavPath,
+      units: _units,
+      prepLead: ref.read(headStartProvider),
+      speed: ref.read(narrationSpeedProvider),
+      startUnit: unit,
+    );
   }
 
   /// Opens the dictionary look-up sheet for a long-pressed word.
@@ -245,6 +353,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _unitsFor(content);
     _followNarration(playback);
     final narratedParagraph = _narratedParagraph(playback);
+    final preparedThroughParagraph = _preparedThroughParagraph(playback);
+    final plannedThroughParagraph = _plannedThroughParagraph(playback);
 
     final headingIndices = <int>{for (final e in content.toc) e.paragraphIndex};
     final baseSize = 18.0 * settings.fontScale;
@@ -264,6 +374,25 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           itemBuilder: (context, index) {
             final isHeading = headingIndices.contains(index);
             final isNarrated = index == narratedParagraph;
+            final currentAudioReady =
+                isNarrated &&
+                (playback?.status == NarrationStatus.playing ||
+                    playback?.status == NarrationStatus.paused);
+            final isPrepared =
+                narratedParagraph != null &&
+                (currentAudioReady ||
+                    (preparedThroughParagraph != null &&
+                        index >= narratedParagraph &&
+                        index <= preparedThroughParagraph));
+            final isPlanned =
+                !isPrepared &&
+                narratedParagraph != null &&
+                plannedThroughParagraph != null &&
+                index >= narratedParagraph &&
+                index <= plannedThroughParagraph;
+            final bandColor = isPrepared
+                ? Colors.blue
+                : (isPlanned ? Colors.redAccent : null);
             return _ReaderParagraph(
               text: content.paragraphs[index],
               style: TextStyle(
@@ -274,9 +403,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               ),
               textScaler: MediaQuery.textScalerOf(context),
               isNarrated: isNarrated,
+              speakerActive: playback?.isPlaying ?? false,
+              bandColor: bandColor,
               highlightColor: palette.foreground.withValues(alpha: 0.08),
-              onTap: () => unawaited(
-                _onParagraphTap(index, content.paragraphs.length),
+              onTap: () =>
+                  unawaited(_onParagraphTap(index, content.paragraphs.length)),
+              onDoubleTap: () => unawaited(
+                _onParagraphReadFromHere(index, content.paragraphs.length),
               ),
               onWordLongPress: _onWordLongPress,
             );
@@ -465,18 +598,22 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 }
 
-/// A single reader paragraph: tap to seek narration (handled by [onTap]) and
-/// long-press a word to look it up ([onWordLongPress]). The pressed word is
-/// resolved by hit-testing the rendered [Text]'s [RenderParagraph] directly, so
-/// detection stays accurate at any font size or family.
+/// A single reader paragraph: tap to seek narration (handled by [onTap]),
+/// double-tap to read from here ([onDoubleTap]), and long-press a word to look
+/// it up ([onWordLongPress]). The pressed word is resolved by hit-testing the
+/// rendered [Text]'s [RenderParagraph] directly, so detection stays accurate at
+/// any font size or family.
 class _ReaderParagraph extends StatefulWidget {
   const _ReaderParagraph({
     required this.text,
     required this.style,
     required this.textScaler,
     required this.isNarrated,
+    required this.speakerActive,
+    required this.bandColor,
     required this.highlightColor,
     required this.onTap,
+    required this.onDoubleTap,
     required this.onWordLongPress,
   });
 
@@ -484,8 +621,11 @@ class _ReaderParagraph extends StatefulWidget {
   final TextStyle style;
   final TextScaler textScaler;
   final bool isNarrated;
+  final bool speakerActive;
+  final Color? bandColor;
   final Color highlightColor;
   final VoidCallback onTap;
+  final VoidCallback onDoubleTap;
   final void Function(String word) onWordLongPress;
 
   @override
@@ -502,21 +642,48 @@ class _ReaderParagraphState extends State<_ReaderParagraph> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
+        onDoubleTap: widget.onDoubleTap,
         onLongPressStart: _handleLongPress,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Container(
           decoration: BoxDecoration(
-            color: widget.isNarrated
-                ? widget.highlightColor
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+            border: Border(
+              left: BorderSide(
+                color: widget.bandColor ?? Colors.transparent,
+                width: 4,
+              ),
+            ),
           ),
-          child: Text(
-            widget.text,
-            key: _textKey,
-            style: widget.style,
-            textScaler: widget.textScaler,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: widget.isNarrated
+                  ? widget.highlightColor
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.isNarrated)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3, right: 6),
+                    child: Icon(
+                      widget.speakerActive ? Icons.volume_up : Icons.volume_off,
+                      size: 16,
+                      color: widget.style.color,
+                    ),
+                  ),
+                Expanded(
+                  child: Text(
+                    widget.text,
+                    key: _textKey,
+                    style: widget.style,
+                    textScaler: widget.textScaler,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -549,4 +716,3 @@ String? _normalizeWord(String raw) {
   final match = RegExp(r"[A-Za-z](?:[A-Za-z'\-]*[A-Za-z])?").firstMatch(raw);
   return match?.group(0);
 }
-

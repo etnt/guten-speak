@@ -122,8 +122,7 @@ class _ActionButtons extends ConsumerWidget {
     final libraryBook = ref.watch(libraryBookProvider(book.id)).valueOrNull;
     final isDownloaded = libraryBook != null;
     final isEpub =
-        libraryBook != null &&
-        libraryBook.path.toLowerCase().endsWith('.epub');
+        libraryBook != null && libraryBook.path.toLowerCase().endsWith('.epub');
     final controller = ref.read(
       bookDownloadControllerProvider(book.id).notifier,
     );
