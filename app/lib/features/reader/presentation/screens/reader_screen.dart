@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -9,6 +11,7 @@ import '../../../../app/theme/app_theme.dart';
 import '../../../../core/utils/narration_segmenter.dart';
 import '../../../../core/utils/toc_extractor.dart';
 import '../../../../core/widgets/state_views.dart';
+import '../../../dictionary/presentation/widgets/dictionary_lookup_sheet.dart';
 import '../../../library/presentation/providers/library_providers.dart';
 import '../../../narration/domain/entities/narration_playback.dart';
 import '../../../narration/presentation/providers/narration_player_providers.dart';
@@ -60,7 +63,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
   ReaderController? _readerController;
-  bool _showControls = true;
   bool _restored = false;
   int _firstVisible = 0;
   Timer? _saveDebounce;
@@ -137,8 +139,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     return (media.padding.top + 64) / height;
   }
 
-  void _toggleControls() => setState(() => _showControls = !_showControls);
-
   /// Segments [content] into narration units (matching the player) and builds
   /// the paragraph → first-unit lookup, caching by the paragraphs list identity
   /// so it only runs once per loaded book.
@@ -189,7 +189,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   /// Handles a paragraph tap: seek the narrator there when it's narrating this
-  /// book, otherwise fall back to toggling the reading controls.
+  /// book. When not narrating, tapping does nothing (the reading controls stay
+  /// visible at all times).
   Future<void> _onParagraphTap(int index, int paragraphCount) async {
     final playback = ref.read(narrationPlaybackProvider).valueOrNull;
     final narrating =
@@ -197,16 +198,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         playback.bookId == widget.bookId &&
         playback.isActive;
     if (!narrating) {
-      _toggleControls();
       return;
     }
     final unit = _firstUnitAtOrAfter(index, paragraphCount);
     if (unit == null) {
-      _toggleControls();
       return;
     }
     final handler = await ref.read(narrationAudioHandlerProvider.future);
     await handler.seekToUnit(unit);
+  }
+
+  /// Opens the dictionary look-up sheet for a long-pressed word.
+  void _onWordLongPress(String word) {
+    unawaited(HapticFeedback.selectionClick());
+    unawaited(showDictionaryLookup(context, word));
   }
 
   @override
@@ -246,62 +251,39 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     return Stack(
       children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _toggleControls,
-          child: ScrollablePositionedList.builder(
-            itemScrollController: _itemScrollController,
-            itemPositionsListener: _itemPositionsListener,
-            padding: EdgeInsets.fromLTRB(
-              20,
-              MediaQuery.of(context).padding.top + 64,
-              20,
-              MediaQuery.of(context).padding.bottom + 80,
-            ),
-            itemCount: content.paragraphs.length,
-            itemBuilder: (context, index) {
-              final isHeading = headingIndices.contains(index);
-              final isNarrated = index == narratedParagraph;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => unawaited(
-                    _onParagraphTap(index, content.paragraphs.length),
-                  ),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isNarrated
-                          ? palette.foreground.withValues(alpha: 0.08)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      content.paragraphs[index],
-                      style: TextStyle(
-                        color: palette.foreground,
-                        fontSize: isHeading ? baseSize * 1.25 : baseSize,
-                        height: 1.5,
-                        fontWeight: isHeading
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
+        ScrollablePositionedList.builder(
+          itemScrollController: _itemScrollController,
+          itemPositionsListener: _itemPositionsListener,
+          padding: EdgeInsets.fromLTRB(
+            20,
+            MediaQuery.of(context).padding.top + 64,
+            20,
+            MediaQuery.of(context).padding.bottom + 80,
           ),
+          itemCount: content.paragraphs.length,
+          itemBuilder: (context, index) {
+            final isHeading = headingIndices.contains(index);
+            final isNarrated = index == narratedParagraph;
+            return _ReaderParagraph(
+              text: content.paragraphs[index],
+              style: TextStyle(
+                color: palette.foreground,
+                fontSize: isHeading ? baseSize * 1.25 : baseSize,
+                height: 1.5,
+                fontWeight: isHeading ? FontWeight.bold : FontWeight.normal,
+              ),
+              textScaler: MediaQuery.textScalerOf(context),
+              isNarrated: isNarrated,
+              highlightColor: palette.foreground.withValues(alpha: 0.08),
+              onTap: () => unawaited(
+                _onParagraphTap(index, content.paragraphs.length),
+              ),
+              onWordLongPress: _onWordLongPress,
+            );
+          },
         ),
-        if (_showControls) ...[
-          _buildTopBar(content, palette),
-          _buildBottomBar(content, settings, palette),
-        ],
+        _buildTopBar(content, palette),
+        _buildBottomBar(content, settings, palette),
       ],
     );
   }
@@ -482,3 +464,89 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
   }
 }
+
+/// A single reader paragraph: tap to seek narration (handled by [onTap]) and
+/// long-press a word to look it up ([onWordLongPress]). The pressed word is
+/// resolved by hit-testing the rendered [Text]'s [RenderParagraph] directly, so
+/// detection stays accurate at any font size or family.
+class _ReaderParagraph extends StatefulWidget {
+  const _ReaderParagraph({
+    required this.text,
+    required this.style,
+    required this.textScaler,
+    required this.isNarrated,
+    required this.highlightColor,
+    required this.onTap,
+    required this.onWordLongPress,
+  });
+
+  final String text;
+  final TextStyle style;
+  final TextScaler textScaler;
+  final bool isNarrated;
+  final Color highlightColor;
+  final VoidCallback onTap;
+  final void Function(String word) onWordLongPress;
+
+  @override
+  State<_ReaderParagraph> createState() => _ReaderParagraphState();
+}
+
+class _ReaderParagraphState extends State<_ReaderParagraph> {
+  final GlobalKey _textKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        onLongPressStart: _handleLongPress,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: widget.isNarrated
+                ? widget.highlightColor
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            widget.text,
+            key: _textKey,
+            style: widget.style,
+            textScaler: widget.textScaler,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleLongPress(LongPressStartDetails details) {
+    final renderObject = _textKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderParagraph) return;
+    final local = renderObject.globalToLocal(details.globalPosition);
+    final size = renderObject.size;
+    if (local.dx < 0 ||
+        local.dy < 0 ||
+        local.dx > size.width ||
+        local.dy > size.height) {
+      return;
+    }
+    final position = renderObject.getPositionForOffset(local);
+    final range = renderObject.getWordBoundary(position);
+    if (range.start < 0 || range.end <= range.start) return;
+    final word = _normalizeWord(widget.text.substring(range.start, range.end));
+    if (word != null) widget.onWordLongPress(word);
+  }
+}
+
+/// Extracts a lookup-able word from a raw text selection, keeping internal
+/// apostrophes and hyphens but trimming surrounding punctuation. Returns null
+/// when there are no letters (e.g. a tapped space or symbol).
+String? _normalizeWord(String raw) {
+  final match = RegExp(r"[A-Za-z](?:[A-Za-z'\-]*[A-Za-z])?").firstMatch(raw);
+  return match?.group(0);
+}
+

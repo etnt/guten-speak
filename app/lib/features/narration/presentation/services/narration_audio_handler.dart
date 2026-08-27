@@ -102,6 +102,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
     required String voiceWavPath,
     required List<NarrationUnit> units,
     int prepLead = 8,
+    double speed = 1.0,
     bool autoplay = true,
   }) async {
     if (_bookId == bookId && _voiceId == voiceId && _scheduler != null) {
@@ -124,7 +125,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
     _playIntent = autoplay;
     _index = 0;
 
-    _emit(status: NarrationStatus.loading, resetError: true);
+    _emit(status: NarrationStatus.loading, resetError: true, speed: speed);
 
     if (units.isEmpty) {
       _emit(status: NarrationStatus.error, error: 'Nothing to narrate.');

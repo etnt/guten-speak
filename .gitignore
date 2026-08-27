@@ -16,3 +16,6 @@ build/
 guten-read/
 app/assets/icon/motif.png
 guten-read/
+dict/
+wn3.1.dict.tar.gz
+wordnet.sqlite

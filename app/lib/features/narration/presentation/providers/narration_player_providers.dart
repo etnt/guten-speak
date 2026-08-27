@@ -45,8 +45,3 @@ Stream<NarrationPlaybackState> narrationPlayback(Ref ref) async* {
   yield handler.state;
   yield* handler.stateStream;
 }
-
-/// How many "head start" sections (units) the user wants pre-rendered before
-/// playback begins. Larger = longer wait up front but smoother, longer-lasting
-/// playback before it needs to catch up. Read once when starting a session.
-final headStartChunksProvider = StateProvider<int>((ref) => 8);

@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../narration/presentation/providers/synth_cache_providers.dart';
 import '../../data/datasources/voice_library_data_source.dart';
@@ -54,14 +57,50 @@ class VoicesController extends _$VoicesController {
   }
 }
 
-/// The voice chosen for narration. Null until the user (or the narration screen)
-/// picks one; consumers should fall back to the first available voice.
+/// The voice chosen for narration. Restored from the persisted default on first
+/// build; consumers should fall back to the first available voice when null.
 @Riverpod(keepAlive: true)
 class SelectedVoice extends _$SelectedVoice {
+  static const String _prefsKey = 'narration_default_voice_id';
+
   @override
-  Voice? build() => null;
+  Voice? build() {
+    unawaited(_restore());
+    return null;
+  }
 
-  void select(Voice voice) => state = voice;
+  /// Restores the persisted default voice once the library is available,
+  /// unless the user has already made a selection in the meantime.
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getString(_prefsKey);
+    if (id == null) return;
+    final library = await ref.read(voiceLibraryProvider.future);
+    if (state != null) return;
+    for (final voice in library.voices) {
+      if (voice.id == id) {
+        state = voice;
+        return;
+      }
+    }
+  }
 
-  void clear() => state = null;
+  void select(Voice voice) {
+    state = voice;
+    unawaited(_persist(voice.id));
+  }
+
+  void clear() {
+    state = null;
+    unawaited(_persist(null));
+  }
+
+  Future<void> _persist(String? id) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (id == null) {
+      await prefs.remove(_prefsKey);
+    } else {
+      await prefs.setString(_prefsKey, id);
+    }
+  }
 }

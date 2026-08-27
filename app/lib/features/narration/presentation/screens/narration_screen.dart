@@ -11,6 +11,7 @@ import '../../../voices/presentation/providers/voice_providers.dart';
 import '../../domain/entities/narration_playback.dart';
 import '../../domain/entities/narration_prep_progress.dart';
 import '../providers/narration_player_providers.dart';
+import '../providers/narration_settings_providers.dart';
 import '../providers/tts_providers.dart';
 
 /// The narration player screen.
@@ -387,7 +388,8 @@ class _PlayerCard extends ConsumerWidget {
         voiceName: voice.name,
         voiceWavPath: voice.wavPath,
         units: units,
-        prepLead: ref.read(headStartChunksProvider),
+        prepLead: ref.read(headStartProvider),
+        speed: ref.read(narrationSpeedProvider),
       );
     }
   }
@@ -419,8 +421,8 @@ class _HeadStartSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final chunks = ref.watch(headStartChunksProvider);
-    final controller = ref.read(headStartChunksProvider.notifier);
+    final chunks = ref.watch(headStartProvider);
+    final controller = ref.read(headStartProvider.notifier);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -431,14 +433,14 @@ class _HeadStartSelector extends ConsumerWidget {
             const Spacer(),
             IconButton(
               onPressed: chunks > _min
-                  ? () => controller.state = chunks - 1
+                  ? () => controller.set(chunks - 1)
                   : null,
               icon: const Icon(Icons.remove_circle_outline),
             ),
             Text('$chunks', style: theme.textTheme.titleMedium),
             IconButton(
               onPressed: chunks < _max
-                  ? () => controller.state = chunks + 1
+                  ? () => controller.set(chunks + 1)
                   : null,
               icon: const Icon(Icons.add_circle_outline),
             ),
@@ -504,7 +506,7 @@ class _ContinueCard extends ConsumerWidget {
 
   Future<void> _continue(WidgetRef ref) async {
     final handler = await ref.read(narrationAudioHandlerProvider.future);
-    await handler.continueNarration(ref.read(headStartChunksProvider));
+    await handler.continueNarration(ref.read(headStartProvider));
   }
 
   Future<void> _stop(WidgetRef ref) async {
