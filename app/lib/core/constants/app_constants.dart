@@ -1,5 +1,14 @@
 class AppConstants {
   static const String appName = 'Guten-Speak';
+
+  /// App version shown in the UI. Injected at release-build time from the
+  /// latest git tag (e.g. `v1.0.0`) via `--dart-define=APP_VERSION=...`;
+  /// defaults to `dev` for debug/local builds.
+  static const String appVersion = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: 'dev',
+  );
+
   static const String gutendexBaseUrl = 'https://gutendex.com';
   static const String booksPath = '/books';
   static const String userAgent =

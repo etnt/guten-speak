@@ -1,70 +1,190 @@
-# Guten-Speak - audio app for Project Gutenberg
+# Guten-Speak — read & listen to Project Gutenberg
 
-With the guten-speak mobile Flutter app you can search for books stored at Project Gutenberg.
-You can search for Author or parts of Titles, get a list of matching books.
-You can the ndownload the book and have it being read up for you.
-With guten-speak you can easily clone your favorite voices and use them
-as narrators of the book being read for you.
+**Guten-Speak** is an Android-first Flutter app that turns [Project
+Gutenberg](https://www.gutenberg.org/) into a personal audiobook library. Search
+for public-domain books, download them, **read** them in a clean e-reader, and —
+optionally — have them **narrated aloud in a voice you cloned yourself**, entirely
+on-device.
 
-## Access to Project Gutenberg 
+- **Read _or_ listen.** Guten-Speak is a fully usable plain e-reader on its own.
+  Narration is an **opt-in** mode layered on top — you never have to download the
+  speech model or clone a voice if you just want to read.
+- **On-device & offline-first.** Once a book is downloaded (and a stretch is
+  synthesized), reading _and_ listening work with no network.
+- **Free & non-commercial** by design. Cloned voices stay local to your device.
 
-Project Gutenberg itself does not provide a modern REST API, but it publishes raw
-RDF/XML catalog dumps and predictable URL structures for direct downloads.
-To bridge the gap, the community relies heavily on Gutendex, a free,
-public REST API built specifically for querying Project Gutenberg's catalog.
+> **Status:** pre-1.0, in active development. The reader, offline catalog, voice
+> library, on-device narration, background player, and reader↔narration sync are
+> implemented; polish (settings UI, bookmarks, storage manager, wider test
+> coverage) and the first public release are still in progress. See
+> [plan/implementation-plan.md](plan/implementation-plan.md) for the full roadmap.
 
-Gutendex processes Gutenberg's raw feeds and serves them as a clean JSON API. It requires no authentication or API keys.
+---
 
-Base Endpoint: [https://gutendex.com/books](https://gutendex.com/books)
+## Features
 
-Search by Author/Title:
-GET [https://gutendex.com/books?search=dickens%20great](https://gutendex.com/books?search=dickens%20great)
+- **Discover** popular and curated-topic books via the Gutendex API.
+- **Offline search & book detail** from an on-device index of Project
+  Gutenberg's `pg_catalog.csv` (~80k English texts), so search works without
+  relying on a live API.
+- **Download manager** (resumable, with Gutenberg boilerplate stripping) that
+  stores books locally.
+- **E-reader** with lazy rendering, index-precise resume/jump, a heuristic table
+  of contents, multiple reading themes (Light / Sepia / Dark / AMOLED),
+  typography controls, and auto-hiding chrome.
+- **Voice library** — import your own `.wav` samples (named, persisted) plus two
+  bundled built-in voices (Reginald Ashworth & Deja Thoris).
+- **On-device narration** — zero-shot voice cloning + text-to-speech running in a
+  background worker isolate, with a bounded **head-start pre-render** so playback
+  stays ahead of synthesis.
+- **Background player** — lock-screen / notification controls, audio focus &
+  ducking, skip ±section, variable speed (0.75×–2×), a persistent mini-player,
+  and resume-where-you-left-off.
+- **Reader ↔ narration sync** — the current paragraph is highlighted and scrolled
+  into view while playing; tap any paragraph to seek narration there.
+- **App theming** — dark (default) / light, persisted across launches.
 
-Filter by Topic or Language:
-GET [https://gutendex.com/books?topic=fiction&languages=en](https://gutendex.com/books?topic=fiction&languages=en)
+---
 
-Lookup by Gutenberg ID:
-GET [https://gutendex.com/books/1342](https://gutendex.com/books/1342)
+## How it works
 
-JSON Response Structure:
-Every book entry returns metadata alongside a formats object containing direct download URLs for EPUB, HTML, Mobipocket, and plain text formats.
+### Access to Project Gutenberg
 
-```json
-{
-  "id": 1342,
-  "title": "Pride and Prejudice",
-  "authors": [{"name": "Austen, Jane", "birth_year": 1775, "death_year": 1817}],
-  "languages": ["en"],
-  "download_count": 52310,
-  "formats": {
-    "text/html": "https://www.gutenberg.org/files/1342/1342-h/1342-h.htm",
-    "application/epub+zip": "https://www.gutenberg.org/ebooks/1342.epub3.images",
-    "text/plain; charset=us-ascii": "https://www.gutenberg.org/ebooks/1342.txt.utf-8"
-  }
-}
+Project Gutenberg does not offer a modern REST API, but it publishes catalog
+dumps and predictable download URLs. Guten-Speak uses two complementary paths:
+
+1. **Gutendex** ([https://gutendex.com](https://gutendex.com)) — a free, no-auth
+   REST API over Gutenberg's catalog — powers the **Discover** screen (popular +
+   curated topics).
+
+   ```
+   GET https://gutendex.com/books?search=dickens%20great
+   GET https://gutendex.com/books?topic=fiction&languages=en
+   GET https://gutendex.com/books/1342
+   ```
+
+2. **Offline local catalog** — for reliable search and book detail, Guten-Speak
+   downloads Gutenberg's `pg_catalog.csv` once (~21 MB), parses it off the UI
+   isolate, and indexes it into a local SQLite table. Search then runs entirely
+   on-device.
+
+Book text is fetched directly from Gutenberg's standard URL paths, e.g. the
+UTF-8 plain text for book #84 (_Frankenstein_):
+
+```
+https://www.gutenberg.org/ebooks/84.txt.utf-8
 ```
 
-2. Direct File Downloads (Native Gutenberg Paths)
-If you already know the Gutenberg Book ID, you do not need an API to construct the download link. Project Gutenberg uses standard URL paths:
+### Text to speech (on-device voice cloning)
 
-Plain Text (.txt): [https://www.gutenberg.org/ebooks/](https://www.gutenberg.org/ebooks/){id}.txt.utf-8
+Narration is powered by [`sherpa_onnx`](https://github.com/k2-fsa/sherpa-onnx)
+running the **PocketTTS** zero-shot cloning model. From a short `.wav` sample it
+clones a voice and synthesizes book text — no cloud, no account, no per-request
+cost. Synthesis runs in a persistent worker isolate to keep the UI responsive.
 
-EPUB3: [https://www.gutenberg.org/ebooks/](https://www.gutenberg.org/ebooks/){id}.epub3.images
+Because on-device synthesis is **slower than real time** under playback
+contention (measured RTF ≈ 1.2–2.0× on a Pixel 10 Pro), Guten-Speak does **not**
+stream unit-by-unit in real time. Instead it pre-renders a bounded **head start**
+into a rolling audio cache before playback begins and keeps topping it up as the
+play head advances. When playback catches up to the synthesized frontier it stops
+cleanly and lets you choose how much to prepare next — no garbled audio.
 
-HTML: [https://www.gutenberg.org/files/](https://www.gutenberg.org/files/){id}/{id}-h/{id}-h.htm
+> **Model download is opt-in.** The PocketTTS model (~470 MB) is only downloaded
+> the first time you tap **Listen**, behind a consent + storage-space gate.
 
-(Example: Book #84 is Frankenstein, so [https://www.gutenberg.org/ebooks/84.txt.utf-8](https://www.gutenberg.org/ebooks/84.txt.utf-8) fetches the UTF-8 text directly.)
+---
 
-## Text to Speech
+## Tech stack
 
-The pocket-tts-raven makes it possible to clone voices and 
-to produce speech from text:
+| Area             | Package / Tool                              |
+|------------------|---------------------------------------------|
+| Framework        | Flutter (stable) / Dart 3.x — Android first |
+| State management | `flutter_riverpod` + `riverpod_annotation` (codegen) |
+| Routing          | `go_router` (stateful shell + bottom nav) |
+| Networking       | `dio` (catalog/detail, downloads) + `http` (model download) |
+| Storage          | `sqflite` (books, progress, synth-cache index) + `shared_preferences` |
+| On-device TTS    | `sherpa_onnx` (PocketTTS zero-shot cloning, fp32, 24 kHz) |
+| Voice import     | `file_picker`; archive extraction via `archive` |
+| Audio playback   | `just_audio` + `audio_service` (background, lock-screen) |
+| Reader           | `scrollable_positioned_list` (index-precise scrolling) |
+| Codegen          | `build_runner`, `freezed`, `json_serializable`, `riverpod_generator` |
+| Testing / CI     | `flutter_test`, `integration_test`, `mocktail`, GitHub Actions |
 
-https://github.com/pkalogiros/pocket-tts-raven
+The app lives under [app/](app); the architecture is feature-first
+(`catalog`, `library`, `reader`, `voices`, `narration`, `settings`) with shared
+TTS infrastructure under `core/tts/`.
 
-By combining this functionality with the access to Porject Gutenberg
-we could potentially create a very nice mobile app that makes it possible
-to listen to books from Project Gutenberg, narrated with your favorite voice.
+---
 
-Since the app is free, and the cloned voices only is used by yourself, there
-ought to be no problems with copyright infringement.
+## Getting started
+
+Requirements: the Flutter SDK (stable channel) and an Android device/emulator.
+Narration additionally needs an arm64 device with room for the ~470 MB model.
+
+```bash
+cd app
+flutter pub get
+
+# Regenerate Riverpod/Freezed/JSON code after touching annotated sources:
+dart run build_runner build --delete-conflicting-outputs
+
+# Run on a connected device:
+flutter run
+
+# Static analysis + tests:
+flutter analyze
+flutter test
+```
+
+The header on the Discover screen shows the app version: `dev` for local/debug
+builds, or the release tag (e.g. `v1.0.0`) for CI-built release APKs. See below.
+
+---
+
+## Release signing
+
+Release APKs are signed with a persistent keystore so that updates install over
+previous versions without conflicts. The key is stored as GitHub Actions secrets
+and decoded at build time by [.github/workflows/release.yml](.github/workflows/release.yml),
+which is triggered by pushing a `v*` tag and passes the tag through as the visible
+app version (`--dart-define=APP_VERSION=<tag>`).
+
+Locally, when `key.properties` is absent, the release build falls back to the
+debug signing key — so `flutter build apk --release` still works for testing.
+
+**One-time setup:**
+
+1. Generate the keystore (run from the `app/` directory). Keep the file safe and
+   out of git — if you lose it you can no longer ship updates that install over
+   existing installs.
+
+   ```bash
+   keytool -genkey -v \
+     -keystore android/release-keystore.jks \
+     -keyalg RSA -keysize 2048 -validity 10000 \
+     -alias release
+   ```
+
+2. Add two repository secrets (Settings → Secrets and variables → Actions):
+
+   | Secret              | Value                                                      |
+   |---------------------|------------------------------------------------------------|
+   | `KEYSTORE_BASE64`   | `base64 -i android/release-keystore.jks` (copy the output) |
+   | `KEYSTORE_PASSWORD` | The password you set above (used for both store and key)   |
+
+The workflow writes `android/key.properties` from these secrets before building,
+and the Gradle release config ([app/android/app/build.gradle.kts](app/android/app/build.gradle.kts))
+picks it up automatically. The workflow assumes key alias `release` and a shared
+store/key password.
+
+> Release verification is deferred until the repository is made public on GitHub,
+> which will happen once the app reaches a 1.0.0 status.
+
+---
+
+## Licensing & attribution
+
+- **App code:** [MPL-2.0](LICENSE).
+- **PocketTTS model weights are NON-COMMERCIAL.** Guten-Speak therefore stays
+  free and non-commercial. Voice cloning is local-only — please only clone voices
+  you own or have permission to use.

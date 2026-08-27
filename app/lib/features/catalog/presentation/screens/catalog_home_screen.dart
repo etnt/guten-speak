@@ -19,9 +19,22 @@ class CatalogHomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Discover'),
+        title: Text.rich(
+          TextSpan(
+            text: 'guten-speak',
+            children: [
+              TextSpan(
+                text: '  ${AppConstants.appVersion}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
