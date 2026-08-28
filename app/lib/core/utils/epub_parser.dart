@@ -93,7 +93,10 @@ class EpubParser {
   /// header/footer paragraphs are removed and the TOC is re-indexed against the
   /// trimmed paragraph list. This is a no-op for EPUBs without Gutenberg
   /// markers, so it is safe to enable for arbitrary imports.
-  EpubDocument parse(Uint8List bytes, {bool stripGutenbergBoilerplate = false}) {
+  EpubDocument parse(
+    Uint8List bytes, {
+    bool stripGutenbergBoilerplate = false,
+  }) {
     final Archive archive;
     try {
       archive = ZipDecoder().decodeBytes(bytes);
