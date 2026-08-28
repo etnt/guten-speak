@@ -6,20 +6,24 @@ for public-domain books, download them, **read** them in a clean e-reader, and �
 optionally — have them **narrated aloud in a voice you cloned yourself**, entirely
 on-device.
 
-- **Read _or_ listen.** Guten-Speak is a fully usable plain e-reader on its own.
-  Narration is an **opt-in** mode layered on top — you never have to download the
-  speech model or clone a voice if you just want to read.
-- **On-device & offline-first.** Once a book is downloaded (and a stretch is
-  synthesized), reading _and_ listening work with no network.
-- **Free & non-commercial** by design. Cloned voices stay local to your device.
+**Screenshots:**
 
-> **Status:** approaching a first public release. The reader, offline catalog,
-> bookmarks, voice library, on-device narration, background player, and
-> reader↔narration sync are implemented. **Voice narration is still somewhat
-> experimental** — see [Text to speech](#text-to-speech-on-device-voice-cloning)
-> below. Remaining work is mostly polish (settings UI, wider test coverage) and
-> the first public release. See [plan/implementation-plan.md](plan/implementation-plan.md)
-> for the full roadmap.
+<a href="screenshots/home-page.jpeg"><img src="screenshots/home-page.jpeg" alt="Home page screenshot" width="19%"></a>
+<a href="screenshots/library-page.jpeg"><img src="screenshots/library-page.jpeg" alt="Library page screenshot" width="19%"></a>
+<a href="screenshots/voice-narration.jpeg"><img src="screenshots/voice-narration.jpeg" alt="Voice narration screenshot" width="19%"></a>
+<a href="screenshots/dictionary.jpeg"><img src="screenshots/dictionary.jpeg" alt="Dictionary screenshot" width="19%"></a>
+<a href="screenshots/settings-page.jpeg"><img src="screenshots/settings-page.jpeg" alt="Settings page screenshot" width="19%"></a>
+
+**Read _or_ listen.** Guten-Speak is a fully usable plain e-reader on its own.
+Narration is an **opt-in** mode layered on top — you never have to download the
+speech model or clone a voice if you just want to read.
+  
+**On-device & offline-first.** Once a book is downloaded (and a stretch is
+synthesized), reading _and_ listening work with no network.
+  
+**Free & non-commercial** by design. Cloned voices stay local to your device.
+
+> **Note:** Voice narration is still somewhat experimental
 
 ---
 
@@ -30,13 +34,15 @@ on-device.
   Gutenberg's `pg_catalog.csv` (~80k English texts), so search works without
   relying on a live API.
 - **Download manager** (resumable, with Gutenberg boilerplate stripping) that
-  stores books locally.
+  stores books locally; to make it possible to read books in EPUB format coming
+  from other sources (no DRM support atm).
 - **E-reader** with lazy rendering, index-precise resume/jump, a heuristic table
   of contents, multiple reading themes (Light / Sepia / Dark / AMOLED),
   typography controls, and auto-hiding chrome.
 - **Bookmarks** — save multiple positions per book, jump back to any of them from
   a list beside the table of contents, with an in-text marker on bookmarked
   paragraphs.
+- **Dictionary** A dictionary exist for looking up the meaning of a word (only English atm).
 - **Voice library** — import your own `.wav` samples (named, persisted) plus two
   bundled built-in voices (Reginald Ashworth & Deja Thoris).
 - **On-device narration** — zero-shot voice cloning + text-to-speech running in a
