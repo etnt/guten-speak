@@ -49,6 +49,10 @@ class LibraryRepositoryImpl implements LibraryRepository {
   Future<Result<List<LibraryBook>>> getLibrary() => _guard(local.getBooks);
 
   @override
+  Future<Result<List<LibraryBook>>> getRecentlyReadBooks({int limit = 10}) =>
+      _guard(() => local.getRecentlyReadBooks(limit: limit));
+
+  @override
   Future<Result<LibraryBook?>> getBook(int id) =>
       _guard(() => local.getBook(id));
 

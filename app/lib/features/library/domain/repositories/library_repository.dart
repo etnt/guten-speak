@@ -11,6 +11,9 @@ abstract interface class LibraryRepository {
   /// All downloaded books, newest first.
   Future<Result<List<LibraryBook>>> getLibrary();
 
+  /// The most recently read downloaded books, newest read first.
+  Future<Result<List<LibraryBook>>> getRecentlyReadBooks({int limit = 10});
+
   /// The downloaded record for [id], or `null` if it is not in the library.
   Future<Result<LibraryBook?>> getBook(int id);
 

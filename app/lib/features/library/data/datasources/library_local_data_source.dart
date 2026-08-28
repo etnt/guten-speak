@@ -32,6 +32,22 @@ class LibraryLocalDataSource {
     return rows.map(_bookFromRow).toList();
   }
 
+  /// Downloaded books that have reading progress, newest read first.
+  Future<List<LibraryBook>> getRecentlyReadBooks({int limit = 10}) async {
+    final rows = await _db.rawQuery(
+      '''
+      SELECT books.*
+      FROM ${Db.books} AS books
+      INNER JOIN ${Db.progress} AS progress
+        ON progress.${Db.progressBookId} = books.${Db.bookId}
+      ORDER BY progress.${Db.progressUpdatedAt} DESC
+      LIMIT ?
+      ''',
+      <Object?>[limit],
+    );
+    return rows.map(_bookFromRow).toList();
+  }
+
   Future<LibraryBook?> getBook(int id) async {
     final rows = await _db.query(
       Db.books,

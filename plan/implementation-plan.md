@@ -559,18 +559,23 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
       _(Done. When narration is active for this book, tapping a paragraph seeks
       to its first unit via `handler.seekToUnit` (paragraphs with no speakable
       unit — e.g. dividers — resolve forward to the next one); when not
-      narrating, a tap keeps the existing toggle-controls behaviour.)_
+  narrating, a tap keeps the existing toggle-controls behaviour. A
+  double-tap starts narration from that paragraph, while the Reader's bottom
+  bar now enables/disables the narrator and selects the voice without
+  requiring a trip to the Listen page.)_
 
 ### Phase G — Polish & release
 - [ ] Narration settings (default voice, quality preset, speed, pre-cache) +
       surface the app dark/light theme toggle in Settings UI.
 - [ ] **Bookmarks**: new `bookmarks(id, book_id FK→books ON DELETE CASCADE,
       paragraph_index, note?, created_at)` table (DB `version` bump + `onUpgrade`);
-      reader top-bar toggle, margin marker on bookmarked paragraphs, and a
+  reader bottom-bar toggle, margin marker on bookmarked paragraphs, and a
       "Bookmarks" list (beside the TOC sheet) that jumps via the existing
       paragraph-index mechanism. (Resume-where-you-left-off already ships via
       `reading_progress`; this adds named, multiple positions per book.)
 - [x] Storage manager (model, per-book audio, voices) with delete/clear + sizes.
+- [x] Recently read picker on the Discover bottom bar, ordered by last Reader
+  activity and opening the selected book directly in the Reader.
 - [ ] Tests: text cleaner (fixtures), segmenter (abbrev/chunking), cache keying,
       scheduler replan-on-seek, notifiers; widget/golden for reader + player.
 - [ ] Accessibility, predictive back, thermals/battery check on a mid-range phone.

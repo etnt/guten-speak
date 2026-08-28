@@ -17,10 +17,20 @@ import '../../../narration/domain/entities/narration_playback.dart';
 import '../../../narration/presentation/providers/narration_player_providers.dart';
 import '../../../narration/presentation/providers/narration_settings_providers.dart';
 import '../../../narration/presentation/providers/tts_providers.dart';
+import '../../../voices/domain/entities/voice.dart';
 import '../../../voices/presentation/providers/voice_providers.dart';
 import '../../domain/entities/reader_content.dart';
 import '../providers/reader_providers.dart';
 import '../providers/reader_settings_provider.dart';
+
+/// Returns at most the first 15 Unicode code points of [title], adding an
+/// ellipsis only when text was removed.
+String compactReaderTitle(String title) {
+  const limit = 15;
+  final characters = title.runes;
+  if (characters.length <= limit) return title;
+  return '${String.fromCharCodes(characters.take(limit))}…';
+}
 
 /// Background/foreground colours for a reading theme.
 typedef _ReaderPalette = ({Color background, Color foreground});
@@ -78,6 +88,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   List<NarrationUnit> _units = const <NarrationUnit>[];
   final Map<int, int> _paraToFirstUnit = <int, int>{};
   int? _lastFollowedParagraph;
+  bool _narrationCommandRunning = false;
 
   @override
   void initState() {
@@ -249,17 +260,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     await handler.seekToUnit(unit);
   }
 
-  /// Handles a paragraph double-tap. When this book is already narrating:
-  /// double-tapping the paragraph being read toggles play/pause; double-tapping
-  /// another paragraph reads from there. When idle, starts a fresh session from
-  /// the tapped paragraph (needs an installed model and a selected voice).
+  /// Handles a paragraph double-tap while the narrator is enabled. Tapping the
+  /// paragraph being read toggles play/pause; tapping another paragraph reads
+  /// from there. Narration must first be enabled from the bottom bar.
   Future<void> _onParagraphReadFromHere(int index, int paragraphCount) async {
-    final messenger = ScaffoldMessenger.of(context);
     final unit = _firstUnitAtOrAfter(index, paragraphCount);
     if (unit == null) return;
-
-    final handler = await ref.read(narrationAudioHandlerProvider.future);
-    if (!mounted) return;
 
     final playback = ref.read(narrationPlaybackProvider).valueOrNull;
     final loaded =
@@ -267,13 +273,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         playback.bookId == widget.bookId &&
         playback.isActive;
     if (loaded) {
+      final handler = await ref.read(narrationAudioHandlerProvider.future);
+      if (!mounted) return;
       if (index == _narratedParagraph(playback)) {
         // A second double-tap may explicitly start a blue (already rendered)
         // current paragraph before the rest of the configured head start is
         // ready. A red current paragraph remains in preparation.
         if (playback.isPlaying) {
           await handler.pause();
-        } else if (playback.status == NarrationStatus.paused) {
+        } else if (playback.status == NarrationStatus.paused ||
+            playback.status == NarrationStatus.awaitingHeadStart ||
+            playback.status == NarrationStatus.completed) {
           await handler.play();
         } else if (playback.status == NarrationStatus.preparing &&
             playback.renderedThrough >= playback.unitIndex) {
@@ -285,35 +295,148 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
-    final installed = ref.read(modelInstalledProvider).valueOrNull ?? false;
+    _showNarrationMessage('Enable the narrator from the bottom bar first.');
+  }
+
+  /// Resolves the persisted narrator, falling back to and selecting the first
+  /// bundled voice so narration can be started entirely from the Reader.
+  Future<Voice?> _resolveNarrationVoice() async {
+    try {
+      final voices = await ref.read(voicesControllerProvider.future);
+      if (!mounted) return null;
+      final selected = ref.read(selectedVoiceProvider);
+      if (selected != null) return selected;
+      if (voices.isEmpty) {
+        _showNarrationMessage('No narrator voices are available.');
+        return null;
+      }
+      final fallback = voices.first;
+      ref.read(selectedVoiceProvider.notifier).select(fallback);
+      return fallback;
+    } catch (error) {
+      if (mounted) _showNarrationMessage('Could not load narrator voices.');
+      return null;
+    }
+  }
+
+  /// Loads the engine in place. The large first-time model download retains an
+  /// explicit consent gate; an installed model is loaded without another
+  /// prompt.
+  Future<bool> _ensureNarrationReady() async {
+    final prep = ref.read(narrationEngineProvider);
+    if (prep.isReady) return true;
+    if (prep.phase.isBusy) return false;
+
+    final installed = await ref.read(modelInstalledProvider.future);
+    if (!mounted) return false;
     if (!installed) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Enable narration on the Listen page first.'),
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Enable narration?'),
+          content: const Text(
+            'On-device narration needs a one-time voice-model download '
+            '(~470 MB). It is stored on this device and works offline.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.download),
+              label: const Text('Download'),
+            ),
+          ],
         ),
       );
-      return;
+      if (confirmed != true || !mounted) return false;
     }
-    final voice = ref.read(selectedVoiceProvider);
-    if (voice == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Pick a voice on the Listen page first.')),
+
+    final ready = await ref.read(narrationEngineProvider.notifier).prepare();
+    if (!mounted || ready) return ready;
+    final failed = ref.read(narrationEngineProvider);
+    if (failed.error != null) {
+      _showNarrationMessage('Could not enable narration: ${failed.error}');
+    }
+    return false;
+  }
+
+  Future<void> _toggleNarrator(ReaderContent content) async {
+    if (_narrationCommandRunning) return;
+    setState(() => _narrationCommandRunning = true);
+    try {
+      final playback = ref.read(narrationPlaybackProvider).valueOrNull;
+      final currentBook =
+          playback != null &&
+          playback.bookId == widget.bookId &&
+          playback.isActive;
+      if (currentBook) {
+        final handler = await ref.read(narrationAudioHandlerProvider.future);
+        await handler.stop();
+        return;
+      }
+
+      final voice = await _resolveNarrationVoice();
+      if (voice == null || !await _ensureNarrationReady()) return;
+
+      final handler = await ref.read(narrationAudioHandlerProvider.future);
+      if (!mounted) return;
+      final startUnit =
+          _firstUnitAtOrAfter(_firstVisible, content.paragraphs.length) ?? 0;
+      await handler.load(
+        bookId: widget.bookId,
+        bookTitle: content.book.title,
+        voiceId: voice.id,
+        voiceName: voice.name,
+        voiceWavPath: voice.wavPath,
+        units: _units,
+        prepLead: ref.read(headStartProvider),
+        speed: ref.read(narrationSpeedProvider),
+        autoplay: false,
+        startUnit: startUnit,
       );
-      return;
+    } finally {
+      if (mounted) setState(() => _narrationCommandRunning = false);
     }
-    final content = ref.read(readerContentProvider(widget.bookId)).valueOrNull;
-    if (content == null) return;
-    await handler.load(
-      bookId: widget.bookId,
-      bookTitle: content.book.title,
-      voiceId: voice.id,
-      voiceName: voice.name,
-      voiceWavPath: voice.wavPath,
-      units: _units,
-      prepLead: ref.read(headStartProvider),
-      speed: ref.read(narrationSpeedProvider),
-      startUnit: unit,
-    );
+  }
+
+  Future<void> _selectNarrationVoice(ReaderContent content, Voice voice) async {
+    ref.read(selectedVoiceProvider.notifier).select(voice);
+    if (_narrationCommandRunning) return;
+
+    final playback = ref.read(narrationPlaybackProvider).valueOrNull;
+    final currentBook =
+        playback != null &&
+        playback.bookId == widget.bookId &&
+        playback.isActive;
+    if (!currentBook || playback.voiceId == voice.id) return;
+
+    setState(() => _narrationCommandRunning = true);
+    try {
+      final handler = await ref.read(narrationAudioHandlerProvider.future);
+      await handler.load(
+        bookId: widget.bookId,
+        bookTitle: content.book.title,
+        voiceId: voice.id,
+        voiceName: voice.name,
+        voiceWavPath: voice.wavPath,
+        units: _units,
+        prepLead: ref.read(headStartProvider),
+        speed: playback.speed,
+        autoplay: playback.isPlaying,
+        startUnit: playback.unitIndex,
+      );
+    } finally {
+      if (mounted) setState(() => _narrationCommandRunning = false);
+    }
+  }
+
+  void _showNarrationMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Opens the dictionary look-up sheet for a long-pressed word.
@@ -415,8 +538,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
             );
           },
         ),
-        _buildTopBar(content, palette),
-        _buildBottomBar(content, settings, palette),
+        _buildTopBar(content, settings, palette),
+        _buildBottomBar(content, palette, playback),
       ],
     );
   }
@@ -437,7 +560,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     });
   }
 
-  Widget _buildTopBar(ReaderContent content, _ReaderPalette palette) {
+  Widget _buildTopBar(
+    ReaderContent content,
+    ReaderSettings settings,
+    _ReaderPalette palette,
+  ) {
+    final notifier = ref.read(readerSettingsProvider.notifier);
     return Positioned(
       top: 0,
       left: 0,
@@ -455,7 +583,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               ),
               Expanded(
                 child: Text(
-                  content.book.title,
+                  compactReaderTitle(content.book.title),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -463,6 +591,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+              ),
+              IconButton(
+                icon: Icon(Icons.text_decrease, color: palette.foreground),
+                tooltip: 'Smaller text',
+                onPressed: notifier.decreaseFont,
+              ),
+              IconButton(
+                icon: Icon(Icons.text_increase, color: palette.foreground),
+                tooltip: 'Larger text',
+                onPressed: notifier.increaseFont,
+              ),
+              IconButton(
+                icon: Icon(Icons.palette_outlined, color: palette.foreground),
+                tooltip: 'Reading theme',
+                onPressed: () => _showThemeSheet(settings, palette),
               ),
               IconButton(
                 icon: Icon(Icons.list, color: palette.foreground),
@@ -480,10 +623,40 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   Widget _buildBottomBar(
     ReaderContent content,
-    ReaderSettings settings,
     _ReaderPalette palette,
+    NarrationPlaybackState? playback,
   ) {
-    final notifier = ref.read(readerSettingsProvider.notifier);
+    final prep = ref.watch(narrationEngineProvider);
+    final voicesAsync = ref.watch(voicesControllerProvider);
+    final voices = voicesAsync.valueOrNull ?? const <Voice>[];
+    final selected = ref.watch(selectedVoiceProvider);
+    final currentBook =
+        playback != null &&
+        playback.bookId == widget.bookId &&
+        playback.isActive;
+    final playbackVoiceId = currentBook ? playback.voiceId : null;
+    Voice? activeVoice;
+    for (final voice in voices) {
+      if (voice.id == (playbackVoiceId ?? selected?.id)) {
+        activeVoice = voice;
+        break;
+      }
+    }
+    activeVoice ??= selected ?? (voices.isEmpty ? null : voices.first);
+
+    final modelBusy = prep.phase.isBusy;
+    final playbackBusy =
+        currentBook &&
+        (playback.status == NarrationStatus.loading || playback.isBuffering);
+    final preparing = currentBook && playback.isPreparing;
+    final showProgress =
+        _narrationCommandRunning || modelBusy || playbackBusy || preparing;
+    final narratorTooltip = modelBusy
+        ? 'Cancel narration setup'
+        : currentBook
+        ? 'Disable narrator'
+        : 'Enable narrator';
+
     return Positioned(
       bottom: 0,
       left: 0,
@@ -496,21 +669,86 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
+              if (voicesAsync.isLoading)
+                const SizedBox.square(
+                  dimension: 48,
+                  child: Center(
+                    child: SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                )
+              else
+                PopupMenuButton<String>(
+                  initialValue: activeVoice?.id,
+                  tooltip: activeVoice == null
+                      ? 'Narrator voice unavailable'
+                      : 'Narrator voice: ${activeVoice.name}',
+                  enabled: voices.isNotEmpty && !_narrationCommandRunning,
+                  color: palette.background,
+                  icon: Icon(
+                    Icons.record_voice_over_outlined,
+                    color: voices.isEmpty
+                        ? palette.foreground.withValues(alpha: 0.38)
+                        : palette.foreground,
+                  ),
+                  onSelected: (id) {
+                    final voice = voices.firstWhere((voice) => voice.id == id);
+                    unawaited(_selectNarrationVoice(content, voice));
+                  },
+                  itemBuilder: (context) => [
+                    for (final voice in voices)
+                      PopupMenuItem<String>(
+                        value: voice.id,
+                        child: Row(
+                          children: [
+                            if (voice.id == activeVoice?.id) ...[
+                              Icon(Icons.check, color: palette.foreground),
+                              const SizedBox(width: 8),
+                            ],
+                            Flexible(
+                              child: Text(
+                                voice.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: palette.foreground),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               IconButton(
-                icon: Icon(Icons.text_decrease, color: palette.foreground),
-                tooltip: 'Smaller text',
-                onPressed: notifier.decreaseFont,
+                iconSize: 30,
+                style: IconButton.styleFrom(
+                  foregroundColor: palette.foreground,
+                  backgroundColor: currentBook
+                      ? palette.foreground.withValues(alpha: 0.16)
+                      : Colors.transparent,
+                ),
+                tooltip: narratorTooltip,
+                onPressed: modelBusy
+                    ? ref.read(narrationEngineProvider.notifier).cancel
+                    : _narrationCommandRunning
+                    ? null
+                    : () => unawaited(_toggleNarrator(content)),
+                icon: showProgress
+                    ? SizedBox.square(
+                        dimension: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: palette.foreground,
+                        ),
+                      )
+                    : Icon(
+                        currentBook
+                            ? Icons.record_voice_over
+                            : Icons.voice_over_off,
+                      ),
               ),
-              IconButton(
-                icon: Icon(Icons.text_increase, color: palette.foreground),
-                tooltip: 'Larger text',
-                onPressed: notifier.increaseFont,
-              ),
-              IconButton(
-                icon: Icon(Icons.palette_outlined, color: palette.foreground),
-                tooltip: 'Reading theme',
-                onPressed: () => _showThemeSheet(settings, palette),
-              ),
+              // Reserved for the Phase G bookmark toggle.
+              const SizedBox.square(dimension: 48),
             ],
           ),
         ),

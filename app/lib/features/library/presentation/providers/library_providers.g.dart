@@ -103,6 +103,26 @@ final libraryBooksProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef LibraryBooksRef = AutoDisposeFutureProviderRef<List<LibraryBook>>;
+String _$recentlyReadBooksHash() => r'e3099836336f4dc2cea8290c1f2232cd3616f920';
+
+/// Up to ten downloaded books ordered by their last Reader activity.
+///
+/// Copied from [recentlyReadBooks].
+@ProviderFor(recentlyReadBooks)
+final recentlyReadBooksProvider =
+    AutoDisposeFutureProvider<List<LibraryBook>>.internal(
+      recentlyReadBooks,
+      name: r'recentlyReadBooksProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$recentlyReadBooksHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef RecentlyReadBooksRef = AutoDisposeFutureProviderRef<List<LibraryBook>>;
 String _$libraryBookHash() => r'62829b386fd09218cb98bed47dce0424e79e2459';
 
 /// Copied from Dart SDK

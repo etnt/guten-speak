@@ -70,6 +70,17 @@ Future<List<LibraryBook>> libraryBooks(Ref ref) async {
   );
 }
 
+/// Up to ten downloaded books ordered by their last Reader activity.
+@riverpod
+Future<List<LibraryBook>> recentlyReadBooks(Ref ref) async {
+  final repo = await ref.watch(libraryRepositoryProvider.future);
+  final result = await repo.getRecentlyReadBooks();
+  return result.when(
+    onSuccess: (books) => books,
+    onFailure: (failure) => throw failure,
+  );
+}
+
 /// The downloaded record for [bookId], or `null` when it is not in the library.
 @riverpod
 Future<LibraryBook?> libraryBook(Ref ref, int bookId) async {

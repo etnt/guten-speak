@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/library/presentation/widgets/recently_read_sheet.dart';
 import '../features/narration/presentation/widgets/narration_mini_player.dart';
 
 class ScaffoldWithNavBar extends StatelessWidget {
@@ -19,23 +20,35 @@ class ScaffoldWithNavBar extends StatelessWidget {
           NavigationBar(
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: (int index) {
+              if (index == 0 && navigationShell.currentIndex == 0) {
+                showRecentlyReadSheet(context);
+                return;
+              }
               navigationShell.goBranch(
                 index,
                 initialLocation: index == navigationShell.currentIndex,
               );
             },
-            destinations: const [
+            destinations: [
               NavigationDestination(
-                icon: Icon(Icons.explore_outlined),
-                selectedIcon: Icon(Icons.explore),
-                label: 'Discover',
+                icon: Icon(
+                  navigationShell.currentIndex == 0
+                      ? Icons.history_outlined
+                      : Icons.home_outlined,
+                ),
+                selectedIcon: Icon(
+                  navigationShell.currentIndex == 0
+                      ? Icons.history
+                      : Icons.home,
+                ),
+                label: navigationShell.currentIndex == 0 ? 'Recent' : 'Home',
               ),
-              NavigationDestination(
+              const NavigationDestination(
                 icon: Icon(Icons.local_library_outlined),
                 selectedIcon: Icon(Icons.local_library),
                 label: 'Library',
               ),
-              NavigationDestination(
+              const NavigationDestination(
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings),
                 label: 'Settings',
