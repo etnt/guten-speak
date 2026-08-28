@@ -67,7 +67,33 @@ class EpubParser {
 
   static final RegExp _whitespace = RegExp(r'\s+');
 
-  EpubDocument parse(Uint8List bytes) {
+  /// Whole-paragraph Project Gutenberg start marker, e.g.
+  /// `*** START OF THE PROJECT GUTENBERG EBOOK ... ***`.
+  static final RegExp _gutenbergStart = RegExp(
+    r'^\*+\s*START OF (?:THE|THIS) PROJECT GUTENBERG',
+    caseSensitive: false,
+  );
+
+  /// Whole-paragraph Project Gutenberg end marker, e.g.
+  /// `*** END OF THE PROJECT GUTENBERG EBOOK ... ***`.
+  static final RegExp _gutenbergEnd = RegExp(
+    r'^\*+\s*END OF (?:THE|THIS) PROJECT GUTENBERG',
+    caseSensitive: false,
+  );
+
+  /// Legacy pre-2004 footer, e.g. `End of Project Gutenberg's ...`.
+  static final RegExp _gutenbergLegacyEnd = RegExp(
+    r'^End of (?:the )?Project Gutenberg',
+    caseSensitive: false,
+  );
+
+  /// Parses [bytes] into an [EpubDocument].
+  ///
+  /// When [stripGutenbergBoilerplate] is true, Project Gutenberg licence
+  /// header/footer paragraphs are removed and the TOC is re-indexed against the
+  /// trimmed paragraph list. This is a no-op for EPUBs without Gutenberg
+  /// markers, so it is safe to enable for arbitrary imports.
+  EpubDocument parse(Uint8List bytes, {bool stripGutenbergBoilerplate = false}) {
     final Archive archive;
     try {
       archive = ZipDecoder().decodeBytes(bytes);
@@ -119,12 +145,91 @@ class EpubParser {
       anchorIndex: anchorIndex,
     );
 
+    if (stripGutenbergBoilerplate) {
+      return _stripGutenbergBoilerplate(
+        title: metadata.title,
+        author: metadata.author,
+        language: metadata.language,
+        paragraphs: paragraphs,
+        toc: toc,
+      );
+    }
+
     return EpubDocument(
       title: metadata.title,
       author: metadata.author,
       language: metadata.language,
       paragraphs: paragraphs,
       toc: toc,
+    );
+  }
+
+  /// Trims Project Gutenberg licence boilerplate from [paragraphs] and shifts
+  /// [toc] indices to match, dropping TOC entries that fall in the removed
+  /// front/back matter. Returns the original content unchanged when no markers
+  /// are present or when trimming would leave nothing behind.
+  EpubDocument _stripGutenbergBoilerplate({
+    required String? title,
+    required String? author,
+    required String? language,
+    required List<String> paragraphs,
+    required List<TocEntry> toc,
+  }) {
+    var start = 0;
+    var end = paragraphs.length;
+
+    for (var i = 0; i < paragraphs.length; i++) {
+      if (_gutenbergStart.hasMatch(paragraphs[i].trimLeft())) {
+        start = i + 1;
+        break;
+      }
+    }
+
+    for (var i = start; i < paragraphs.length; i++) {
+      final text = paragraphs[i].trimLeft();
+      if (_gutenbergEnd.hasMatch(text) || _gutenbergLegacyEnd.hasMatch(text)) {
+        end = i;
+        break;
+      }
+    }
+
+    if (start == 0 && end == paragraphs.length) {
+      return EpubDocument(
+        title: title,
+        author: author,
+        language: language,
+        paragraphs: paragraphs,
+        toc: toc,
+      );
+    }
+
+    final trimmed = paragraphs.sublist(start, end);
+    if (trimmed.isEmpty) {
+      // Defensive: never hand back an empty book from over-eager trimming.
+      return EpubDocument(
+        title: title,
+        author: author,
+        language: language,
+        paragraphs: paragraphs,
+        toc: toc,
+      );
+    }
+
+    final shiftedToc = <TocEntry>[
+      for (final entry in toc)
+        if (entry.paragraphIndex >= start && entry.paragraphIndex < end)
+          TocEntry(
+            title: entry.title,
+            paragraphIndex: entry.paragraphIndex - start,
+          ),
+    ];
+
+    return EpubDocument(
+      title: title,
+      author: author,
+      language: language,
+      paragraphs: trimmed,
+      toc: shiftedToc,
     );
   }
 

@@ -300,4 +300,99 @@ Line three</pre>
       );
     });
   });
+
+  group('EpubParser (Gutenberg boilerplate)', () {
+    const opf = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0"
+    unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Boilerplate Book</dc:title>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml"
+        properties="nav"/>
+    <item id="c1" href="chap1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c1"/>
+  </spine>
+</package>
+''';
+    const nav = '''
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chap1.xhtml#front">Front Matter</a></li>
+        <li><a href="chap1.xhtml#one">Chapter One</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+''';
+    const chap1 = '''
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <p id="front">The Project Gutenberg eBook of Boilerplate Book</p>
+    <p>Title: Boilerplate Book</p>
+    <p>*** START OF THE PROJECT GUTENBERG EBOOK BOILERPLATE BOOK ***</p>
+    <h1 id="one">Chapter One</h1>
+    <p>The real story begins here.</p>
+    <p>And it continues here.</p>
+    <p>*** END OF THE PROJECT GUTENBERG EBOOK BOILERPLATE BOOK ***</p>
+    <p>THE FULL PROJECT GUTENBERG LICENSE — do not include this.</p>
+  </body>
+</html>
+''';
+
+    Uint8List bytes() => buildEpub({
+      'META-INF/container.xml': _container,
+      'OEBPS/content.opf': opf,
+      'OEBPS/nav.xhtml': nav,
+      'OEBPS/chap1.xhtml': chap1,
+    });
+
+    test('left untouched when the flag is off', () {
+      final doc = const EpubParser().parse(bytes());
+      expect(doc.paragraphs.first, contains('Project Gutenberg eBook of'));
+      expect(doc.paragraphs.last, contains('do not include this'));
+    });
+
+    test('drops header/footer and keeps only the body when the flag is on', () {
+      final doc = const EpubParser().parse(
+        bytes(),
+        stripGutenbergBoilerplate: true,
+      );
+      expect(doc.paragraphs, <String>[
+        'Chapter One',
+        'The real story begins here.',
+        'And it continues here.',
+      ]);
+    });
+
+    test('re-indexes the TOC and drops entries in trimmed regions', () {
+      final doc = const EpubParser().parse(
+        bytes(),
+        stripGutenbergBoilerplate: true,
+      );
+      // "Front Matter" pointed into the stripped header, so it is dropped.
+      expect(doc.toc, <TocEntry>[
+        const TocEntry(title: 'Chapter One', paragraphIndex: 0),
+      ]);
+      expect(doc.paragraphs[doc.toc.first.paragraphIndex], 'Chapter One');
+    });
+
+    test('is a no-op for EPUBs without Gutenberg markers', () {
+      final doc = const EpubParser().parse(
+        sampleEpub(),
+        stripGutenbergBoilerplate: true,
+      );
+      expect(doc.paragraphs, isNotEmpty);
+      expect(doc.paragraphs.first, 'Chapter One');
+    });
+  });
 }
+

@@ -44,7 +44,7 @@ class BookContentLoader {
     final epubFile = File(p.join(bookDir.path, epubFileName));
     if (await epubFile.exists()) {
       final bytes = await epubFile.readAsBytes();
-      final doc = parser.parse(bytes);
+      final doc = parser.parse(bytes, stripGutenbergBoilerplate: true);
       final content = BookContent(paragraphs: doc.paragraphs, toc: doc.toc);
       await _tryWriteCache(cacheFile, content);
       return content;

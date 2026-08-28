@@ -130,7 +130,10 @@ class LibraryRepositoryImpl implements LibraryRepository {
 
       final EpubDocument doc;
       try {
-        doc = const EpubParser().parse(await epubFile.readAsBytes());
+        doc = const EpubParser().parse(
+          await epubFile.readAsBytes(),
+          stripGutenbergBoilerplate: true,
+        );
       } catch (_) {
         await bookDir.delete(recursive: true);
         throw const ValidationFailure(
