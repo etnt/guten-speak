@@ -626,6 +626,17 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
   1.2–2.0× (not the isolated 1.12×) — the per-frame LM pass dominates, so
   `numSteps` barely moves it. This is why playback is pre-rendered (head start,
   Phase E) rather than streamed.)_
+- **UI responsiveness during pre-render (needs investigation — potentially
+  serious).** While chapter-ahead synthesis is running, the app can stall for
+  seconds on ordinary main-isolate interactions — observed as a multi-second
+  delay between tapping *add bookmark* and the ribbon + snackbar appearing (a
+  hot reload during synthesis also took ~24 s). Synthesis is meant to live in the
+  worker isolate (§5.5), so the UI isolate should stay responsive; the stall
+  suggests heavy work is still leaking onto the UI isolate and/or the shared
+  single `sqflite` connection is being contended by synth-cache-index writes.
+  Follow-up: confirm all native TTS work stays off the UI isolate, move/queue DB
+  writes off the hot path (or use a separate connection), throttle look-ahead
+  under load, and measure tap-to-feedback latency while pre-rendering.
 - **Option 2 — fast non-cloning on-device voice (escape hatch).** If the
   pre-render wait or catch-up pauses prove unacceptable, swap PocketTTS zero-shot
   cloning for a standard sherpa-onnx model (VITS / Matcha / Kokoro) that runs at

@@ -128,14 +128,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   int _computeFirstVisibleIndex() {
     final positions = _itemPositionsListener.itemPositions.value;
     if (positions.isEmpty) return _firstVisible;
-    // The topmost item still (partly) visible below the viewport's leading edge.
-    var best = positions.first;
+    // The top-most paragraph whose start is visible (leading edge at or below
+    // the viewport's top). Fall back to the top-most partly-visible paragraph
+    // when a single tall paragraph fills the viewport. Positions are unordered,
+    // so we scan them all instead of trusting iteration order.
+    int? firstWithVisibleStart;
+    int? firstPartlyVisible;
     for (final p in positions) {
-      if (p.itemLeadingEdge >= 0 && p.index < best.index) {
-        best = p;
+      if (p.itemTrailingEdge <= 0) continue; // entirely above the viewport
+      if (firstPartlyVisible == null || p.index < firstPartlyVisible) {
+        firstPartlyVisible = p.index;
+      }
+      if (p.itemLeadingEdge >= 0 &&
+          (firstWithVisibleStart == null || p.index < firstWithVisibleStart)) {
+        firstWithVisibleStart = p.index;
       }
     }
-    return best.index;
+    return firstWithVisibleStart ?? firstPartlyVisible ?? _firstVisible;
   }
 
   void _jumpToParagraph(int index) {
@@ -783,7 +792,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               IconButton(
                 icon: Icon(Icons.bookmarks_outlined, color: palette.foreground),
                 tooltip: 'Bookmarks',
-                onPressed: () => unawaited(_showBookmarksSheet(content, palette)),
+                onPressed: () =>
+                    unawaited(_showBookmarksSheet(content, palette)),
               ),
             ],
           ),
@@ -863,10 +873,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 children: [
                   for (final bookmark in bookmarks)
                     ListTile(
-                      leading: Icon(
-                        Icons.bookmark,
-                        color: palette.foreground,
-                      ),
+                      leading: Icon(Icons.bookmark, color: palette.foreground),
                       title: Text(
                         _bookmarkLabel(content, bookmark),
                         style: TextStyle(color: palette.foreground),

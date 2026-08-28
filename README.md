@@ -13,11 +13,13 @@ on-device.
   synthesized), reading _and_ listening work with no network.
 - **Free & non-commercial** by design. Cloned voices stay local to your device.
 
-> **Status:** pre-1.0, in active development. The reader, offline catalog, voice
-> library, on-device narration, background player, and reader↔narration sync are
-> implemented; polish (settings UI, bookmarks, storage manager, wider test
-> coverage) and the first public release are still in progress. See
-> [plan/implementation-plan.md](plan/implementation-plan.md) for the full roadmap.
+> **Status:** approaching a first public release. The reader, offline catalog,
+> bookmarks, voice library, on-device narration, background player, and
+> reader↔narration sync are implemented. **Voice narration is still somewhat
+> experimental** — see [Text to speech](#text-to-speech-on-device-voice-cloning)
+> below. Remaining work is mostly polish (settings UI, wider test coverage) and
+> the first public release. See [plan/implementation-plan.md](plan/implementation-plan.md)
+> for the full roadmap.
 
 ---
 
@@ -32,6 +34,9 @@ on-device.
 - **E-reader** with lazy rendering, index-precise resume/jump, a heuristic table
   of contents, multiple reading themes (Light / Sepia / Dark / AMOLED),
   typography controls, and auto-hiding chrome.
+- **Bookmarks** — save multiple positions per book, jump back to any of them from
+  a list beside the table of contents, with an in-text marker on bookmarked
+  paragraphs.
 - **Voice library** — import your own `.wav` samples (named, persisted) plus two
   bundled built-in voices (Reginald Ashworth & Deja Thoris).
 - **On-device narration** — zero-shot voice cloning + text-to-speech running in a
@@ -92,6 +97,11 @@ cleanly and lets you choose how much to prepare next — no garbled audio.
 > **Model download is opt-in.** The PocketTTS model (~470 MB) is only downloaded
 > the first time you tap **Listen**, behind a consent + storage-space gate.
 
+> **Narration is experimental.** Zero-shot cloning quality varies with the sample
+> you provide, and because synthesis is slower than real time the app pre-renders
+> audio rather than streaming it live. Expect the occasional artifact and treat
+> narration as a preview feature — the plain e-reader is the stable core.
+
 ---
 
 ## Tech stack
@@ -102,7 +112,7 @@ cleanly and lets you choose how much to prepare next — no garbled audio.
 | State management | `flutter_riverpod` + `riverpod_annotation` (codegen) |
 | Routing          | `go_router` (stateful shell + bottom nav) |
 | Networking       | `dio` (catalog/detail, downloads) + `http` (model download) |
-| Storage          | `sqflite` (books, progress, synth-cache index) + `shared_preferences` |
+| Storage          | `sqflite` (books, progress, bookmarks, synth-cache index) + `shared_preferences` |
 | On-device TTS    | `sherpa_onnx` (PocketTTS zero-shot cloning, fp32, 24 kHz) |
 | Voice import     | `file_picker`; archive extraction via `archive` |
 | Audio playback   | `just_audio` + `audio_service` (background, lock-screen) |
@@ -184,9 +194,9 @@ store/key password.
 
 ## Acknowledgments
 
-It was the demo of (pkalogiros/pocket-tts-raven)[https://github.com/pkalogiros/pocket-tts-raven] that
-got me wanting to try out if it would be possible to create a book narrator app with custom voices
-that the user could upload himself.
+The demo of [pocket-tts-raven](https://github.com/pkalogiros/pocket-tts-raven)
+is what inspired this project — it made me want to find out whether a book
+narrator app with custom, user-supplied voices was possible on-device.
 
 ---
 
