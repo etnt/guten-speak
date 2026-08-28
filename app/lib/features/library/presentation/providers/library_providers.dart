@@ -164,7 +164,7 @@ class BookImportController extends _$BookImportController {
     try {
       final repo = await ref.read(libraryRepositoryProvider.future);
       final result = await repo.importEpub(sourcePath);
-      return result.when(
+      return await result.when(
         onSuccess: (book) {
           ref.invalidate(libraryBooksProvider);
           return book;
