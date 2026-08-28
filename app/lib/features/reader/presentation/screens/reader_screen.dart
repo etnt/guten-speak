@@ -33,6 +33,37 @@ String compactReaderTitle(String title) {
   return '${String.fromCharCodes(characters.take(limit))}…';
 }
 
+/// Returns the first paragraph with content visible below the reader's
+/// overlaid top bar.
+///
+/// [ItemPositionsListener] reports visibility against the physical viewport,
+/// including the area covered by the top bar. A paragraph wholly hidden under
+/// that overlay must therefore be excluded explicitly, while a paragraph that
+/// crosses the bar's lower edge is still the top-most readable paragraph.
+int firstReadableParagraphIndex(
+  Iterable<ItemPosition> positions, {
+  required double topInsetFraction,
+  required double itemTrailingPaddingFraction,
+  required int fallback,
+}) {
+  // Ignore a sub-pixel sliver caused by rounding at the overlay boundary.
+  final readableTop = (topInsetFraction + 0.001).clamp(0.0, 1.0);
+  int? firstVisible;
+
+  for (final position in positions) {
+    // ItemPosition includes the paragraph widget's bottom padding. Subtract it
+    // so empty spacing below a hidden paragraph does not count as visible text.
+    final textTrailingEdge =
+        position.itemTrailingEdge - itemTrailingPaddingFraction;
+    if (textTrailingEdge <= readableTop) continue;
+    if (firstVisible == null || position.index < firstVisible) {
+      firstVisible = position.index;
+    }
+  }
+
+  return firstVisible ?? fallback;
+}
+
 /// Background/foreground colours for a reading theme.
 typedef _ReaderPalette = ({Color background, Color foreground});
 
@@ -76,6 +107,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
+  final GlobalKey _topBarKey = GlobalKey();
   ReaderController? _readerController;
   bool _restored = false;
   int _firstVisible = 0;
@@ -127,24 +159,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   int _computeFirstVisibleIndex() {
     final positions = _itemPositionsListener.itemPositions.value;
-    if (positions.isEmpty) return _firstVisible;
-    // The top-most paragraph whose start is visible (leading edge at or below
-    // the viewport's top). Fall back to the top-most partly-visible paragraph
-    // when a single tall paragraph fills the viewport. Positions are unordered,
-    // so we scan them all instead of trusting iteration order.
-    int? firstWithVisibleStart;
-    int? firstPartlyVisible;
-    for (final p in positions) {
-      if (p.itemTrailingEdge <= 0) continue; // entirely above the viewport
-      if (firstPartlyVisible == null || p.index < firstPartlyVisible) {
-        firstPartlyVisible = p.index;
-      }
-      if (p.itemLeadingEdge >= 0 &&
-          (firstWithVisibleStart == null || p.index < firstWithVisibleStart)) {
-        firstWithVisibleStart = p.index;
-      }
-    }
-    return firstWithVisibleStart ?? firstPartlyVisible ?? _firstVisible;
+    return firstReadableParagraphIndex(
+      positions,
+      topInsetFraction: _visibleTopAlignment,
+      itemTrailingPaddingFraction: _paragraphTrailingPaddingAlignment,
+      fallback: _firstVisible,
+    );
   }
 
   void _jumpToParagraph(int index) {
@@ -166,6 +186,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final height = media.size.height;
     if (height <= 0) return 0;
     return (media.padding.top + 64) / height;
+  }
+
+  /// Bottom edge of the actual overlaid top bar, as a viewport fraction.
+  double get _visibleTopAlignment {
+    final media = MediaQuery.of(context);
+    final height = media.size.height;
+    if (height <= 0) return 0;
+    final measuredHeight = _topBarKey.currentContext?.size?.height;
+    final topBarHeight =
+        measuredHeight ?? media.padding.top + kMinInteractiveDimension;
+    return (topBarHeight / height).clamp(0.0, 1.0);
+  }
+
+  double get _paragraphTrailingPaddingAlignment {
+    final height = MediaQuery.sizeOf(context).height;
+    if (height <= 0) return 0;
+    return _ReaderParagraph.textTrailingPadding / height;
   }
 
   /// Segments [content] into narration units (matching the player) and builds
@@ -594,6 +631,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       left: 0,
       right: 0,
       child: Material(
+        key: _topBarKey,
         color: palette.background.withValues(alpha: 0.95),
         elevation: 1,
         child: SafeArea(
@@ -785,7 +823,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ),
                     tooltip: marked ? 'Remove bookmark' : 'Add bookmark',
                     onPressed: () =>
-                        unawaited(_toggleBookmark(paragraph, existing)),
+                        _toggleBookmarkAtCurrentPosition(bookmarks),
                   );
                 },
               ),
@@ -808,6 +846,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (bookmark.paragraphIndex == paragraphIndex) return bookmark;
     }
     return null;
+  }
+
+  void _toggleBookmarkAtCurrentPosition(List<Bookmark> bookmarks) {
+    // Read ItemPositionsListener at tap time instead of relying on the value
+    // captured by the latest bottom-bar rebuild, which may lag one frame behind
+    // a fling or narration-driven scroll.
+    final paragraph = _computeFirstVisibleIndex();
+    if (paragraph != _firstVisible) {
+      _firstVisible = paragraph;
+      _firstVisibleParagraph.value = paragraph;
+    }
+    unawaited(_toggleBookmark(paragraph, _bookmarkAt(bookmarks, paragraph)));
   }
 
   Future<void> _toggleBookmark(int paragraphIndex, Bookmark? existing) async {
@@ -1016,6 +1066,11 @@ class _ReaderParagraph extends StatefulWidget {
   final VoidCallback onDoubleTap;
   final void Function(String word) onWordLongPress;
 
+  static const double _bottomSpacing = 16;
+  static const double _contentVerticalPadding = 4;
+  static const double textTrailingPadding =
+      _bottomSpacing + _contentVerticalPadding;
+
   @override
   State<_ReaderParagraph> createState() => _ReaderParagraphState();
 }
@@ -1026,7 +1081,7 @@ class _ReaderParagraphState extends State<_ReaderParagraph> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: _ReaderParagraph._bottomSpacing),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
@@ -1043,7 +1098,10 @@ class _ReaderParagraphState extends State<_ReaderParagraph> {
           ),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: _ReaderParagraph._contentVerticalPadding,
+            ),
             decoration: BoxDecoration(
               color: widget.isNarrated
                   ? widget.highlightColor
