@@ -13,6 +13,11 @@ build/
 # Scratch text files
 /intro.txt
 /sample.txt
+
+# Private commercial LCP test material (license, protected book, passphrase)
+/LCP-Passphrase.txt
+/Science-Fiction-Anthology.lcpl
+/science-fiction-anthology.epub
 guten-read/
 app/assets/icon/motif.png
 guten-read/

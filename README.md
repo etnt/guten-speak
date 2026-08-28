@@ -182,6 +182,14 @@ store/key password.
 
 ---
 
+## Acknowledgments
+
+It was the demo of (pkalogiros/pocket-tts-raven)[https://github.com/pkalogiros/pocket-tts-raven] that
+got me wanting to try out if it would be possible to create a book narrator app with custom voices
+that the user could upload himself.
+
+---
+
 ## Licensing & attribution
 
 - **App code:** [MPL-2.0](LICENSE).
