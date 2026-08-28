@@ -12,6 +12,7 @@ import '../../../../core/utils/epub_parser.dart';
 import '../../../../core/utils/text_cleaner_service.dart';
 import '../../../catalog/data/models/book_summary.dart';
 import '../../domain/entities/book_content.dart';
+import '../../domain/entities/bookmark.dart';
 import '../../domain/entities/library_book.dart';
 import '../../domain/entities/reading_progress.dart';
 import '../../domain/repositories/library_repository.dart';
@@ -199,6 +200,32 @@ class LibraryRepositoryImpl implements LibraryRepository {
       ),
     );
   }
+
+  @override
+  Future<Result<List<Bookmark>>> getBookmarks(int bookId) =>
+      _guard(() => local.getBookmarks(bookId));
+
+  @override
+  Future<Result<Bookmark>> addBookmark(
+    int bookId,
+    int paragraphIndex, {
+    String? note,
+  }) {
+    return _guard(
+      () => local.addBookmark(
+        Bookmark(
+          bookId: bookId,
+          paragraphIndex: paragraphIndex,
+          note: note,
+          createdAt: DateTime.now(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<Result<void>> deleteBookmark(int id) =>
+      _guard(() => local.deleteBookmark(id));
 
   /// Attempts to download and validate the book's EPUB edition.
   ///

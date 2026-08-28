@@ -12,6 +12,7 @@ import '../../../../core/utils/narration_segmenter.dart';
 import '../../../../core/utils/toc_extractor.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../dictionary/presentation/widgets/dictionary_lookup_sheet.dart';
+import '../../../library/domain/entities/bookmark.dart';
 import '../../../library/presentation/providers/library_providers.dart';
 import '../../../narration/domain/entities/narration_playback.dart';
 import '../../../narration/presentation/providers/narration_player_providers.dart';
@@ -78,6 +79,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   ReaderController? _readerController;
   bool _restored = false;
   int _firstVisible = 0;
+  // Mirrors [_firstVisible] for widgets that need to react to scrolling (the
+  // bottom-bar bookmark toggle) without rebuilding the whole reader.
+  final ValueNotifier<int> _firstVisibleParagraph = ValueNotifier<int>(0);
   Timer? _saveDebounce;
 
   // Narration sync: units are segmented the same way the player does, so the
@@ -100,6 +104,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void dispose() {
     _saveDebounce?.cancel();
     _itemPositionsListener.itemPositions.removeListener(_onScroll);
+    _firstVisibleParagraph.dispose();
     // Best-effort final save of the last known position. Uses the captured
     // controller (kept alive) rather than `ref`, which is invalid in dispose.
     unawaited(_readerController?.saveProgress(widget.bookId, _firstVisible));
@@ -110,6 +115,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final index = _computeFirstVisibleIndex();
     if (index != _firstVisible) {
       _firstVisible = index;
+      _firstVisibleParagraph.value = index;
       _saveDebounce?.cancel();
       _saveDebounce = Timer(const Duration(seconds: 1), () {
         unawaited(
@@ -480,6 +486,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final plannedThroughParagraph = _plannedThroughParagraph(playback);
 
     final headingIndices = <int>{for (final e in content.toc) e.paragraphIndex};
+    final bookmarkedIndices = <int>{
+      for (final b
+          in ref.watch(bookmarksProvider(widget.bookId)).valueOrNull ??
+              const <Bookmark>[])
+        b.paragraphIndex,
+    };
     final baseSize = 18.0 * settings.fontScale;
 
     return Stack(
@@ -527,6 +539,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               textScaler: MediaQuery.textScalerOf(context),
               isNarrated: isNarrated,
               speakerActive: playback?.isPlaying ?? false,
+              isBookmarked: bookmarkedIndices.contains(index),
               bandColor: bandColor,
               highlightColor: palette.foreground.withValues(alpha: 0.08),
               onTap: () =>
@@ -554,6 +567,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (index <= 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _firstVisible = index;
+      _firstVisibleParagraph.value = index;
       if (_itemScrollController.isAttached) {
         _itemScrollController.jumpTo(index: index, alignment: _topBarAlignment);
       }
@@ -630,6 +644,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final voicesAsync = ref.watch(voicesControllerProvider);
     final voices = voicesAsync.valueOrNull ?? const <Voice>[];
     final selected = ref.watch(selectedVoiceProvider);
+    final bookmarks =
+        ref.watch(bookmarksProvider(widget.bookId)).valueOrNull ??
+        const <Bookmark>[];
     final currentBook =
         playback != null &&
         playback.bookId == widget.bookId &&
@@ -747,13 +764,137 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                             : Icons.voice_over_off,
                       ),
               ),
-              // Reserved for the Phase G bookmark toggle.
-              const SizedBox.square(dimension: 48),
+              ValueListenableBuilder<int>(
+                valueListenable: _firstVisibleParagraph,
+                builder: (context, paragraph, _) {
+                  final existing = _bookmarkAt(bookmarks, paragraph);
+                  final marked = existing != null;
+                  return IconButton(
+                    icon: Icon(
+                      marked ? Icons.bookmark : Icons.bookmark_border,
+                      color: palette.foreground,
+                    ),
+                    tooltip: marked ? 'Remove bookmark' : 'Add bookmark',
+                    onPressed: () =>
+                        unawaited(_toggleBookmark(paragraph, existing)),
+                  );
+                },
+              ),
+              IconButton(
+                icon: Icon(Icons.bookmarks_outlined, color: palette.foreground),
+                tooltip: 'Bookmarks',
+                onPressed: () => unawaited(_showBookmarksSheet(content, palette)),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Returns the bookmark at [paragraphIndex], or `null` when none exists.
+  Bookmark? _bookmarkAt(List<Bookmark> bookmarks, int paragraphIndex) {
+    for (final bookmark in bookmarks) {
+      if (bookmark.paragraphIndex == paragraphIndex) return bookmark;
+    }
+    return null;
+  }
+
+  Future<void> _toggleBookmark(int paragraphIndex, Bookmark? existing) async {
+    final controller = ref.read(bookmarkControllerProvider.notifier);
+    if (existing != null) {
+      await controller.remove(widget.bookId, existing.id!);
+      _showBookmarkMessage('Bookmark removed');
+    } else {
+      await controller.add(widget.bookId, paragraphIndex);
+      _showBookmarkMessage('Bookmark added');
+    }
+  }
+
+  void _showBookmarkMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// A human-readable label for [bookmark]: its note, else the nearest preceding
+  /// chapter title plus its paragraph position.
+  String _bookmarkLabel(ReaderContent content, Bookmark bookmark) {
+    final note = bookmark.note?.trim();
+    if (note != null && note.isNotEmpty) return note;
+    String? chapter;
+    for (final entry in content.toc) {
+      if (entry.paragraphIndex <= bookmark.paragraphIndex) {
+        chapter = entry.title;
+      } else {
+        break;
+      }
+    }
+    final position = 'Paragraph ${bookmark.paragraphIndex + 1}';
+    return chapter == null ? position : '$chapter · $position';
+  }
+
+  Future<void> _showBookmarksSheet(
+    ReaderContent content,
+    _ReaderPalette palette,
+  ) async {
+    final selected = await showModalBottomSheet<Bookmark>(
+      context: context,
+      backgroundColor: palette.background,
+      builder: (context) {
+        return SafeArea(
+          child: Consumer(
+            builder: (context, ref, _) {
+              final bookmarks =
+                  ref.watch(bookmarksProvider(widget.bookId)).valueOrNull ??
+                  const <Bookmark>[];
+              if (bookmarks.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'No bookmarks yet',
+                    style: TextStyle(color: palette.foreground),
+                  ),
+                );
+              }
+              return ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final bookmark in bookmarks)
+                    ListTile(
+                      leading: Icon(
+                        Icons.bookmark,
+                        color: palette.foreground,
+                      ),
+                      title: Text(
+                        _bookmarkLabel(content, bookmark),
+                        style: TextStyle(color: palette.foreground),
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: palette.foreground,
+                        ),
+                        tooltip: 'Delete bookmark',
+                        onPressed: () => unawaited(
+                          ref
+                              .read(bookmarkControllerProvider.notifier)
+                              .remove(widget.bookId, bookmark.id!),
+                        ),
+                      ),
+                      onTap: () => Navigator.of(context).pop(bookmark),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+    if (selected != null) {
+      _jumpToParagraph(selected.paragraphIndex);
+    }
   }
 
   Future<void> _showTocSheet(
@@ -848,6 +989,7 @@ class _ReaderParagraph extends StatefulWidget {
     required this.textScaler,
     required this.isNarrated,
     required this.speakerActive,
+    required this.isBookmarked,
     required this.bandColor,
     required this.highlightColor,
     required this.onTap,
@@ -860,6 +1002,7 @@ class _ReaderParagraph extends StatefulWidget {
   final TextScaler textScaler;
   final bool isNarrated;
   final bool speakerActive;
+  final bool isBookmarked;
   final Color? bandColor;
   final Color highlightColor;
   final VoidCallback onTap;
@@ -920,6 +1063,15 @@ class _ReaderParagraphState extends State<_ReaderParagraph> {
                     textScaler: widget.textScaler,
                   ),
                 ),
+                if (widget.isBookmarked)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3, left: 6),
+                    child: Icon(
+                      Icons.bookmark,
+                      size: 16,
+                      color: widget.style.color,
+                    ),
+                  ),
               ],
             ),
           ),

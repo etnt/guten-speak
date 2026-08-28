@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/storage/app_database.dart';
+import '../../domain/entities/bookmark.dart';
 import '../../domain/entities/library_book.dart';
 import '../../domain/entities/reading_progress.dart';
 
@@ -91,6 +92,48 @@ class LibraryLocalDataSource {
       Db.progressParagraphIndex: progress.paragraphIndex,
       Db.progressUpdatedAt: progress.updatedAt.millisecondsSinceEpoch,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// All bookmarks for [bookId], in reading order (by paragraph index).
+  Future<List<Bookmark>> getBookmarks(int bookId) async {
+    final rows = await _db.query(
+      Db.bookmarks,
+      where: '${Db.bookmarkBookId} = ?',
+      whereArgs: <Object?>[bookId],
+      orderBy: '${Db.bookmarkParagraphIndex} ASC',
+    );
+    return rows.map(_bookmarkFromRow).toList();
+  }
+
+  /// Inserts [bookmark] and returns a copy with the assigned row id.
+  Future<Bookmark> addBookmark(Bookmark bookmark) async {
+    final id = await _db.insert(Db.bookmarks, {
+      Db.bookmarkBookId: bookmark.bookId,
+      Db.bookmarkParagraphIndex: bookmark.paragraphIndex,
+      Db.bookmarkNote: bookmark.note,
+      Db.bookmarkCreatedAt: bookmark.createdAt.millisecondsSinceEpoch,
+    });
+    return bookmark.copyWith(id: id);
+  }
+
+  Future<void> deleteBookmark(int id) async {
+    await _db.delete(
+      Db.bookmarks,
+      where: '${Db.bookmarkId} = ?',
+      whereArgs: <Object?>[id],
+    );
+  }
+
+  Bookmark _bookmarkFromRow(Map<String, Object?> row) {
+    return Bookmark(
+      id: row[Db.bookmarkId]! as int,
+      bookId: row[Db.bookmarkBookId]! as int,
+      paragraphIndex: row[Db.bookmarkParagraphIndex]! as int,
+      note: row[Db.bookmarkNote] as String?,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        row[Db.bookmarkCreatedAt]! as int,
+      ),
+    );
   }
 
   LibraryBook _bookFromRow(Map<String, Object?> row) {

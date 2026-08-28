@@ -12,7 +12,7 @@ part 'app_database.g.dart';
 /// not in SQLite.
 abstract final class Db {
   static const String fileName = 'guten_speak.db';
-  static const int version = 4;
+  static const int version = 5;
 
   // catalog (local search index of pg_catalog.csv) ---------------------
   static const String catalog = 'catalog';
@@ -62,6 +62,14 @@ abstract final class Db {
   static const String narrationUnitIndex = 'unit_index';
   static const String narrationPositionMs = 'position_ms';
   static const String narrationUpdatedAt = 'updated_at';
+
+  // bookmarks (user-saved positions; many per book) ---------------------
+  static const String bookmarks = 'bookmarks';
+  static const String bookmarkId = 'id';
+  static const String bookmarkBookId = 'book_id';
+  static const String bookmarkParagraphIndex = 'paragraph_index';
+  static const String bookmarkNote = 'note';
+  static const String bookmarkCreatedAt = 'created_at';
 }
 
 /// Opens (creating on first run) the shared metadata database and keeps it open
@@ -108,6 +116,7 @@ Future<void> _onCreate(Database db, int version) async {
   await _createCatalogTables(db);
   await _createSynthCacheTable(db);
   await _createNarrationProgressTable(db);
+  await _createBookmarksTable(db);
 }
 
 Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -119,6 +128,9 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   }
   if (oldVersion < 4) {
     await _createNarrationProgressTable(db);
+  }
+  if (oldVersion < 5) {
+    await _createBookmarksTable(db);
   }
 }
 
@@ -180,5 +192,25 @@ Future<void> _createNarrationProgressTable(Database db) async {
       ${Db.narrationPositionMs} INTEGER NOT NULL,
       ${Db.narrationUpdatedAt} INTEGER NOT NULL
     )
+  ''');
+}
+
+/// Creates the bookmarks table: user-saved positions keyed by paragraph index,
+/// many per book. Cascade-deletes with the book. Indexed by `(book_id,
+/// paragraph_index)` for the ordered per-book list read.
+Future<void> _createBookmarksTable(Database db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS ${Db.bookmarks} (
+      ${Db.bookmarkId} INTEGER PRIMARY KEY AUTOINCREMENT,
+      ${Db.bookmarkBookId} INTEGER NOT NULL
+        REFERENCES ${Db.books} (${Db.bookId}) ON DELETE CASCADE,
+      ${Db.bookmarkParagraphIndex} INTEGER NOT NULL,
+      ${Db.bookmarkNote} TEXT,
+      ${Db.bookmarkCreatedAt} INTEGER NOT NULL
+    )
+  ''');
+  await db.execute('''
+    CREATE INDEX IF NOT EXISTS idx_bookmarks_book
+      ON ${Db.bookmarks} (${Db.bookmarkBookId}, ${Db.bookmarkParagraphIndex})
   ''');
 }

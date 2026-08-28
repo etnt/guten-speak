@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/network/result.dart';
 import '../../../catalog/data/models/book_summary.dart';
 import '../entities/book_content.dart';
+import '../entities/bookmark.dart';
 import '../entities/library_book.dart';
 import '../entities/reading_progress.dart';
 
@@ -46,4 +47,18 @@ abstract interface class LibraryRepository {
 
   /// Persists the reading position for [bookId] at [paragraphIndex].
   Future<Result<void>> saveProgress(int bookId, int paragraphIndex);
+
+  /// All bookmarks for [bookId], in reading order.
+  Future<Result<List<Bookmark>>> getBookmarks(int bookId);
+
+  /// Adds a bookmark for [bookId] at [paragraphIndex], returning the stored
+  /// record (with its assigned id).
+  Future<Result<Bookmark>> addBookmark(
+    int bookId,
+    int paragraphIndex, {
+    String? note,
+  });
+
+  /// Removes the bookmark with row [id].
+  Future<Result<void>> deleteBookmark(int id);
 }

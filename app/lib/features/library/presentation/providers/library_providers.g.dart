@@ -408,6 +408,135 @@ class _ReadingProgressProviderElement
   int get bookId => (origin as ReadingProgressProvider).bookId;
 }
 
+String _$bookmarksHash() => r'3fbb94293c0a7d713f3c1e6b396054297d68d6a8';
+
+/// All bookmarks for [bookId], in reading order.
+///
+/// Copied from [bookmarks].
+@ProviderFor(bookmarks)
+const bookmarksProvider = BookmarksFamily();
+
+/// All bookmarks for [bookId], in reading order.
+///
+/// Copied from [bookmarks].
+class BookmarksFamily extends Family<AsyncValue<List<Bookmark>>> {
+  /// All bookmarks for [bookId], in reading order.
+  ///
+  /// Copied from [bookmarks].
+  const BookmarksFamily();
+
+  /// All bookmarks for [bookId], in reading order.
+  ///
+  /// Copied from [bookmarks].
+  BookmarksProvider call(int bookId) {
+    return BookmarksProvider(bookId);
+  }
+
+  @override
+  BookmarksProvider getProviderOverride(covariant BookmarksProvider provider) {
+    return call(provider.bookId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'bookmarksProvider';
+}
+
+/// All bookmarks for [bookId], in reading order.
+///
+/// Copied from [bookmarks].
+class BookmarksProvider extends AutoDisposeFutureProvider<List<Bookmark>> {
+  /// All bookmarks for [bookId], in reading order.
+  ///
+  /// Copied from [bookmarks].
+  BookmarksProvider(int bookId)
+    : this._internal(
+        (ref) => bookmarks(ref as BookmarksRef, bookId),
+        from: bookmarksProvider,
+        name: r'bookmarksProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$bookmarksHash,
+        dependencies: BookmarksFamily._dependencies,
+        allTransitiveDependencies: BookmarksFamily._allTransitiveDependencies,
+        bookId: bookId,
+      );
+
+  BookmarksProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.bookId,
+  }) : super.internal();
+
+  final int bookId;
+
+  @override
+  Override overrideWith(
+    FutureOr<List<Bookmark>> Function(BookmarksRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: BookmarksProvider._internal(
+        (ref) => create(ref as BookmarksRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        bookId: bookId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<List<Bookmark>> createElement() {
+    return _BookmarksProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is BookmarksProvider && other.bookId == bookId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, bookId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin BookmarksRef on AutoDisposeFutureProviderRef<List<Bookmark>> {
+  /// The parameter `bookId` of this provider.
+  int get bookId;
+}
+
+class _BookmarksProviderElement
+    extends AutoDisposeFutureProviderElement<List<Bookmark>>
+    with BookmarksRef {
+  _BookmarksProviderElement(super.provider);
+
+  @override
+  int get bookId => (origin as BookmarksProvider).bookId;
+}
+
 String _$bookDownloadControllerHash() =>
     r'950e4ca623cac098edda1b6440d0068559a5277b';
 
@@ -579,5 +708,24 @@ final bookImportControllerProvider =
     );
 
 typedef _$BookImportController = AutoDisposeNotifier<bool>;
+String _$bookmarkControllerHash() =>
+    r'c24f1157bd2465b7a7d035e94cc517d916fb8d5d';
+
+/// Adds and removes bookmarks, invalidating [bookmarksProvider] for the book.
+///
+/// Copied from [BookmarkController].
+@ProviderFor(BookmarkController)
+final bookmarkControllerProvider =
+    AutoDisposeNotifierProvider<BookmarkController, void>.internal(
+      BookmarkController.new,
+      name: r'bookmarkControllerProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$bookmarkControllerHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$BookmarkController = AutoDisposeNotifier<void>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

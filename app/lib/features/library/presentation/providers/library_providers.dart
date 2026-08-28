@@ -12,6 +12,7 @@ import '../../../catalog/data/models/book_summary.dart';
 import '../../data/datasources/book_download_data_source.dart';
 import '../../data/datasources/library_local_data_source.dart';
 import '../../data/repositories/library_repository_impl.dart';
+import '../../domain/entities/bookmark.dart';
 import '../../domain/entities/download_state.dart';
 import '../../domain/entities/library_book.dart';
 import '../../domain/entities/reading_progress.dart';
@@ -185,4 +186,40 @@ Future<ReadingProgress?> readingProgress(Ref ref, int bookId) async {
     onSuccess: (progress) => progress,
     onFailure: (failure) => throw failure,
   );
+}
+
+/// All bookmarks for [bookId], in reading order.
+@riverpod
+Future<List<Bookmark>> bookmarks(Ref ref, int bookId) async {
+  final repo = await ref.watch(libraryRepositoryProvider.future);
+  final result = await repo.getBookmarks(bookId);
+  return result.when(
+    onSuccess: (list) => list,
+    onFailure: (failure) => throw failure,
+  );
+}
+
+/// Adds and removes bookmarks, invalidating [bookmarksProvider] for the book.
+@riverpod
+class BookmarkController extends _$BookmarkController {
+  @override
+  void build() {}
+
+  Future<void> add(int bookId, int paragraphIndex, {String? note}) async {
+    final repo = await ref.read(libraryRepositoryProvider.future);
+    final result = await repo.addBookmark(bookId, paragraphIndex, note: note);
+    result.when(
+      onSuccess: (_) => ref.invalidate(bookmarksProvider(bookId)),
+      onFailure: (failure) => throw failure,
+    );
+  }
+
+  Future<void> remove(int bookId, int id) async {
+    final repo = await ref.read(libraryRepositoryProvider.future);
+    final result = await repo.deleteBookmark(id);
+    result.when(
+      onSuccess: (_) => ref.invalidate(bookmarksProvider(bookId)),
+      onFailure: (failure) => throw failure,
+    );
+  }
 }

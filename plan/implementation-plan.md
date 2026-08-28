@@ -178,10 +178,11 @@ auto-scroll; tapping a paragraph seeks narration to that unit.
 **Resume position (built):** the reader persists the top **paragraph index** to
 `reading_progress` (one row per book, updated in place) and jumps back to it on
 reopen — the same paragraph-index model narration will resume on. **Bookmarks
-(planned, Phase G):** a separate `bookmarks(id, book_id FK, paragraph_index,
-note?, created_at)` table (many per book) reusing the same jump mechanism —
-toggle in the top bar, margin marker on bookmarked paragraphs, and a
-"Bookmarks" list (alongside the TOC sheet) that jumps on tap.
+(built, Phase G):** a `bookmarks(id, book_id FK, paragraph_index, note?,
+created_at)` table (many per book) reusing the same jump mechanism — add/remove
+toggle and a "Bookmarks" list in the reader **bottom bar** (sibling to the TOC
+sheet, jumps on tap), plus a right-margin ribbon on bookmarked paragraphs. See
+[bookmarks-feature.md](bookmarks-feature.md).
 
 ### 5.4 Voice Library (`features/voices`) — port from PoC
 Proven in the PoC ([voice_library.dart](../poc/lib/voice_library.dart)):
@@ -567,12 +568,16 @@ Phase G  Polish: settings, storage mgr, tests, accessibility, release APK
 ### Phase G — Polish & release
 - [ ] Narration settings (default voice, quality preset, speed, pre-cache) +
       surface the app dark/light theme toggle in Settings UI.
-- [ ] **Bookmarks**: new `bookmarks(id, book_id FK→books ON DELETE CASCADE,
-      paragraph_index, note?, created_at)` table (DB `version` bump + `onUpgrade`);
-  reader bottom-bar toggle, margin marker on bookmarked paragraphs, and a
-      "Bookmarks" list (beside the TOC sheet) that jumps via the existing
-      paragraph-index mechanism. (Resume-where-you-left-off already ships via
-      `reading_progress`; this adds named, multiple positions per book.)
+- [x] **Bookmarks**: `bookmarks(id, book_id FK→books ON DELETE CASCADE,
+      paragraph_index, note?, created_at)` table (DB `version` 4→5 + `onUpgrade`);
+      reader bottom-bar add/remove toggle, right-margin ribbon on bookmarked
+      paragraphs, and a "Bookmarks" list (beside the TOC sheet) that jumps via the
+      existing paragraph-index mechanism. (Resume-where-you-left-off already ships
+      via `reading_progress`; this adds named, multiple positions per book.)
+      _(Done. `Bookmark` freezed entity + `bookmarks`/`BookmarkController`
+      providers; CRUD in `LibraryLocalDataSource`/`LibraryRepositoryImpl`; the
+      toggle stays live while scrolling via a `ValueNotifier`. See
+      [bookmarks-feature.md](bookmarks-feature.md).)_
 - [x] Storage manager (model, per-book audio, voices) with delete/clear + sizes.
 - [x] Recently read picker on the Discover bottom bar, ordered by last Reader
   activity and opening the selected book directly in the Reader.
