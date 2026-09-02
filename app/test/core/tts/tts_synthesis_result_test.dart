@@ -9,7 +9,7 @@ void main() {
       int nativeGenerateMillis = 2000,
       int requestToCompleteMillis = 2500,
     }) => TtsSynthesisResult(
-      engineId: 'sherpa_onnx',
+      engineId: 'pocket_tts_raven',
       profileId: 'p',
       sampleCount: sampleCount,
       sampleRate: sampleRate,
@@ -35,7 +35,10 @@ void main() {
 
     test('pipeline RTF is never better than native RTF', () {
       final r = make();
-      expect(r.pipelineRealTimeFactor, greaterThanOrEqualTo(r.nativeRealTimeFactor));
+      expect(
+        r.pipelineRealTimeFactor,
+        greaterThanOrEqualTo(r.nativeRealTimeFactor),
+      );
     });
 
     test('zero audio yields zero RTFs instead of dividing by zero', () {

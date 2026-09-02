@@ -46,7 +46,7 @@ class _StorageBody extends ConsumerWidget {
       children: [
         _SectionHeader('Total • ${formatBytes(usage.totalBytes)}'),
 
-        const _SectionHeader('TTS models'),
+        const _SectionHeader('Voice model'),
         if (!usage.anyModelInstalled)
           const ListTile(
             leading: Icon(Icons.graphic_eq_outlined),

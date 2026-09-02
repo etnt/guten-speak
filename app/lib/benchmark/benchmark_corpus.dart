@@ -43,10 +43,7 @@ class BenchmarkCorpus {
     final rawUnits = (json['units']! as List<Object?>)
         .map((e) => BenchmarkUnit.fromJson(e! as Map<String, Object?>))
         .toList(growable: false);
-    return BenchmarkCorpus(
-      version: json['version']! as int,
-      units: rawUnits,
-    );
+    return BenchmarkCorpus(version: json['version']! as int, units: rawUnits);
   }
 
   /// Bumped whenever the corpus contents change, so a result set records which

@@ -53,8 +53,7 @@ class TtsSynthesisResult {
   final bool? cacheWarm;
 
   /// Generated audio duration in seconds.
-  double get audioSeconds =>
-      sampleRate > 0 ? sampleCount / sampleRate : 0.0;
+  double get audioSeconds => sampleRate > 0 ? sampleCount / sampleRate : 0.0;
 
   /// Native-compute real-time factor: `< 1.0` means faster than real time.
   double get nativeRealTimeFactor {

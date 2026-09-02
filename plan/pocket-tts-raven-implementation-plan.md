@@ -1,9 +1,9 @@
 # Pocket TTS Raven Android implementation plan
 
-**Status:** In progress — Phase 2 complete; Phase 3 partial (worker, bindings, WAV pipeline done; installer + voice artifacts pending)  
+**Status:** In progress — Phase 2 complete; Phases 3 & 4 complete (installer hardened, worker, bindings, WAV pipeline, voice-artifact invalidation, profile-aware integration done). Phase 5 formal benchmark + blinded panel **waived** on 2026-09-02 by the maintainer's on-device quality judgment (Raven int8 judged clearly better than sherpa); work now moves toward the Phase 6 cutover.  
 **Date:** 2026-08-31 (updated 2026-09-02)  
 **Depends on:** [Pocket TTS Raven investigation](pocket-tts-raven-investigation.md)  
-**Upstream revision:** [`abd26158ab50f954616eaf42296b09c4856489d7`](https://github.com/pkalogiros/pocket-tts-raven/tree/abd26158ab50f954616eaf42296b09c4856489d7)
+**Upstream revision:** [`abd26158ab50f954616eaf42296b09c4856489d7`](https://github.com/etnt/pocket-tts-raven/tree/abd26158ab50f954616eaf42296b09c4856489d7)
 
 ## 1. Objective
 
@@ -659,12 +659,25 @@ agreed device-memory ceiling.
   <br/>Archive SHA-256 pinned + verified before extraction; tar path-traversal
   guard; extract to `.staging-<name>` then atomic rename to `modelDir`. Disk
   preflight deferred (no pure-Dart free-space API).
-- [ ] Implement Raven-private voice references and `.emb`/`.kv` invalidation.
+- [x] Implement Raven-private voice references and `.emb`/`.kv` invalidation.
+  <br/>Deletion cleanup (`VoiceLibrary.remove` drops `.emb`/`.kv`) plus
+  **model-upgrade invalidation**: a `.cache/.model-manifest` marker records the
+  model the artifacts were built against; `reconcileRavenVoiceCache` purges stale
+  `.emb`/`.kv` when `modelManifestSha` changes (run on every `ensureModel`), and
+  `deleteFromDisk` purges them via `purgeRavenVoiceCache`. The full §8 scheme
+  (per-model private voices dir + content-hash sidecar) is intentionally **not**
+  implemented: imports get an immutable unique-id stem and there is no in-place
+  content-replace path, so the mtime-vs-content and namespace risks §8 guarded
+  against cannot occur with the current shared-voices-dir design.
 - [x] Generate/check in FFI bindings.
 - [x] Implement responsive polling, cancellation, ownership, and graceful disposal.
 - [x] Implement bounded sample validation, trim/fade, WAV encoding, and atomic rename.
 - [x] Return the common metrics/result type.
-- [ ] Build the Raven-only benchmark APK and prove artifact isolation.
+- [~] Build the Raven-only benchmark APK and prove artifact isolation.
+  <br/>**Waived** for the benchmark comparison (Phase 5 waived). The underlying
+  **artifact-isolation checks** (exactly one arm64 `libonnxruntime.so`, no stray
+  sherpa native libs, arm64-only payload, 16 KB alignment) are **not** waived and
+  move to Phase 6 against the real release artifact.
 
 **Tests**
 
@@ -735,6 +748,16 @@ like the current file-based flow.
 
 ### Phase 5 — Controlled comparison and decision (2–3 days)
 
+> **Waived (2026-09-02).** The maintainer listened to Raven int8
+> (int8 / lsdSteps 4 / temperature 0.20) narrating on a Pixel 10 Pro (profile
+> build) and judged the quality clearly better than the sherpa baseline. On that
+> basis the formal controlled comparison — full automated corpus on both
+> worktrees, the Raven-vs-sherpa benchmark APKs, and the blinded listening panel
+> — is **waived**. The non-quality adoption gates that remain relevant
+> (memory/thermal behaviour under sustained narration, lifecycle stability,
+> release/16 KB/attribution/consent) are folded into the Phase 6 cutover checks
+> rather than a standalone benchmark pass.
+
 **Tasks**
 
 - [ ] Freeze candidate profiles after tuning subset results.
@@ -772,19 +795,44 @@ This phase starts only after a go decision.
 
 **Tasks**
 
-- [ ] Choose Raven-only replacement or prove one-runtime dual-engine compatibility.
-- [ ] For the preferred Raven-only path, remove sherpa packages and verify no sherpa/duplicate
-  ORT library remains.
-- [ ] Add in-app model/runtime/bundled-voice notices.
-- [ ] Add explicit lawful-consent acknowledgment to voice import/creation UX.
-- [ ] Update storage UI for Raven model and voice-cache deletion.
-- [ ] Preserve legacy sherpa cache rows/files and model files through the initial rollout unless
-  the user explicitly removes them.
-- [ ] Produce an internal beta APK with a distinct application ID.
+- [x] Choose Raven-only replacement or prove one-runtime dual-engine compatibility. **Raven-only
+  chosen (2026-09-02).**
+- [x] For the preferred Raven-only path, remove sherpa packages and verify no sherpa/duplicate
+  ORT library remains. **Done (2026-09-02):** deleted `sherpa_tts_engine.dart`, `tts_service.dart`,
+  `model_manager.dart`, the sherpa smoke/unit tests; dropped the `sherpa_onnx` dependency (and its 10
+  platform packages) and the sherpa `modelManager` provider; stripped sherpa wiring from
+  `StorageManager`/`storage_providers`. Analyzer clean, 142 tests green.
+- [x] Per-ABI release APK naming: `guten-speak-<version>-<abi>.apk` via a `build.gradle.kts` output
+  rename (2026-09-02). Build per-ABI with `flutter build apk --release --split-per-abi`.
+- [x] Add in-app model/runtime/bundled-voice notices (`THIRD_PARTY_NOTICES.md`, MPL-2.0 project
+  license). **Done (2026-09-02):** added root `THIRD_PARTY_NOTICES.md`; registered native/model/
+  bundled-voice entries via `LicenseRegistry.addLicense()` in `main()`
+  (`core/licenses/third_party_licenses.dart`) and surfaced Flutter's `showLicensePage()` from
+  **Settings → About → Licenses & notices**.
+- [x] Add explicit lawful-consent acknowledgment to voice import/creation UX. **Done (2026-09-02):**
+  one-time consent dialog (persisted via `SharedPreferences` key `voice_clone_consent_accepted`)
+  gating `_importVoice` in `voices_screen.dart`.
+- [x] Update storage UI for Raven model and voice-cache deletion. **Done (2026-09-02):**
+  per-engine model list + per-row/voice-cache deletion already wired; wording made
+  singular (`Voice model` header, `Neural voice model` label — dropped internal
+  "Raven" name).
+- [x] Produce an internal beta APK with a distinct application ID. **Done
+  (2026-09-02):** added `prod`/`beta` product flavors under a `track`
+  dimension in [`build.gradle.kts`](../app/android/app/build.gradle.kts); the
+  `beta` flavor gets `applicationIdSuffix = ".beta"`
+  (`se.kruskakli.guten_speak.beta`), `versionNameSuffix = "-beta"`, and a
+  `Guten-Speak Beta` launcher label via a `${appName}` manifest placeholder.
+  Built `flutter build apk --release --flavor beta` (debug-signed — no local
+  keystore) and installed/launched on the Pixel 10 Pro. Flutter commands now
+  require `--flavor prod`/`--flavor beta`.
 - [ ] Run final release, upgrade, background-audio, process-death, and 16 KB tests.
 - [ ] Update [`README.md`](../README.md), the main
   [`implementation-plan.md`](implementation-plan.md), and
   [`tts-options.md`](tts-options.md) with the measured decision and current licensing facts.
+
+> **Note (2026-09-02):** sustained-narration soak tests are being done manually by the maintainer
+> instead of an automated harness. Legacy sherpa cache/model preservation is unnecessary — old code
+> is retained in git history, not at runtime.
 
 **Exit gate**
 

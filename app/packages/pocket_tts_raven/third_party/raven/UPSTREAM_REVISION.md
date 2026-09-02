@@ -7,7 +7,10 @@ Phase 0 freeze (`plan/pocket-tts-raven-phase-0-freeze.md` §2).
 
 ## Upstream
 
-- Repository: https://github.com/pkalogiros/pocket-tts-raven
+- Repository (vendored from): https://github.com/etnt/pocket-tts-raven — a fork
+  of the original, mirrored so this provenance and the pinned revision survive
+  even if the original repository is removed.
+- Original upstream: https://github.com/pkalogiros/pocket-tts-raven
 - Revision (pinned): `abd26158ab50f954616eaf42296b09c4856489d7` (2026-07-08)
 - License: MIT (see `LICENSE`, `THIRD_PARTY_NOTICES.md`)
 - Audio contract: mono float32 PCM @ 24000 Hz.

@@ -55,13 +55,12 @@ dependencies:
   xml: ^6.5.0
   html: ^0.15.5
 
-  # ── Narration (ported from the PoC) ──
-  sherpa_onnx: ^1.13.6
+  # ── Narration ──
   file_picker: ^12.1.0
   archive: ^4.2.0
   http: ^1.6.0
 
-  # ── Pocket TTS Raven candidate engine (local FFI plugin) ──
+  # ── Pocket TTS Raven engine (local FFI plugin) ──
   ffi: ^2.1.3
   pocket_tts_raven:
     path: packages/pocket_tts_raven
@@ -112,12 +111,12 @@ flutter:
   uses-material-design: true
 
   # Bundled built-in narrator voices (materialized to app storage on first run
-  # so sherpa-onnx, which reads from a file path, can clone from them).
+  # so Raven, which reads from a file path, can clone from them).
   assets:
     - assets/voices/reginald-ashworth.wav
     - assets/voices/deja-thoris.wav
     # Engine-independent TTS benchmark corpus (real public-domain book text),
-    # replayed on-device to compare the sherpa baseline against Raven.
+    # replayed on-device to benchmark Raven.
     - assets/benchmark/tts_benchmark_corpus_small.json
 
   # To add assets to your application, add an assets section, like this:

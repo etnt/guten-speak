@@ -21,7 +21,7 @@ speech model or clone a voice if you just want to read.
 **On-device & offline-first.** Once a book is downloaded (and a stretch is
 synthesized), reading _and_ listening work with no network.
   
-**Free & non-commercial** by design. Cloned voices stay local to your device.
+**Free and open-source.** Cloned voices stay local to your device.
 
 > **Note:** Voice narration is still somewhat experimental
 
@@ -88,25 +88,27 @@ https://www.gutenberg.org/ebooks/84.txt.utf-8
 
 ### Text to speech (on-device voice cloning)
 
-Narration is powered by [`sherpa_onnx`](https://github.com/k2-fsa/sherpa-onnx)
-running the **PocketTTS** zero-shot cloning model. From a short `.wav` sample it
-clones a voice and synthesizes book text — no cloud, no account, no per-request
-cost. Synthesis runs in a persistent worker isolate to keep the UI responsive.
+Narration is powered by
+**[Pocket TTS Raven](https://github.com/etnt/pocket-tts-raven)**, an
+on-device engine running Kyutai's **Pocket TTS** zero-shot cloning model (int8,
+4-step flow). From a short `.wav` sample it clones a voice and synthesizes book
+text — no cloud, no account, no per-request cost. Synthesis runs in a persistent
+worker isolate to keep the UI responsive.
 
-Because on-device synthesis is **slower than real time** under playback
-contention (measured RTF ≈ 1.2–2.0× on a Pixel 10 Pro), Guten-Speak does **not**
-stream unit-by-unit in real time. Instead it pre-renders a bounded **head start**
-into a rolling audio cache before playback begins and keeps topping it up as the
-play head advances. When playback catches up to the synthesized frontier it stops
-cleanly and lets you choose how much to prepare next — no garbled audio.
+To keep playback smooth and gap-free (and to stay ahead on slower devices),
+Guten-Speak pre-renders a bounded **head start** into a rolling audio cache
+before playback begins and keeps topping it up as the play head advances. When
+playback catches up to the synthesized frontier it stops cleanly and lets you
+choose how much to prepare next — no garbled audio.
 
-> **Model download is opt-in.** The PocketTTS model (~470 MB) is only downloaded
-> the first time you tap **Listen**, behind a consent + storage-space gate.
+> **Model download is opt-in.** The Pocket TTS Raven model (~80 MB download,
+> ~165 MB on disk) is only downloaded the first time you tap **Listen**, behind
+> a consent + storage-space gate.
 
 > **Narration is experimental.** Zero-shot cloning quality varies with the sample
-> you provide, and because synthesis is slower than real time the app pre-renders
-> audio rather than streaming it live. Expect the occasional artifact and treat
-> narration as a preview feature — the plain e-reader is the stable core.
+> you provide, and the app pre-renders audio rather than streaming it live.
+> Expect the occasional artifact and treat narration as a preview feature — the
+> plain e-reader is the stable core.
 
 ---
 
@@ -119,7 +121,7 @@ cleanly and lets you choose how much to prepare next — no garbled audio.
 | Routing          | `go_router` (stateful shell + bottom nav) |
 | Networking       | `dio` (catalog/detail, downloads) + `http` (model download) |
 | Storage          | `sqflite` (books, progress, bookmarks, synth-cache index) + `shared_preferences` |
-| On-device TTS    | `sherpa_onnx` (PocketTTS zero-shot cloning, fp32, 24 kHz) |
+| On-device TTS    | `pocket_tts_raven` (local FFI plugin: Pocket TTS Raven engine + ONNX Runtime; int8, 24 kHz) |
 | Voice import     | `file_picker`; archive extraction via `archive` |
 | Audio playback   | `just_audio` + `audio_service` (background, lock-screen) |
 | Reader           | `scrollable_positioned_list` (index-precise scrolling) |
@@ -135,7 +137,7 @@ TTS infrastructure under `core/tts/`.
 ## Getting started
 
 Requirements: the Flutter SDK (stable channel) and an Android device/emulator.
-Narration additionally needs an arm64 device with room for the ~470 MB model.
+Narration additionally needs an arm64 device with room for the ~165 MB model.
 
 ```bash
 cd app
@@ -209,6 +211,15 @@ narrator app with custom, user-supplied voices was possible on-device.
 ## Licensing & attribution
 
 - **App code:** [MPL-2.0](LICENSE).
-- **PocketTTS model weights are NON-COMMERCIAL.** Guten-Speak therefore stays
-  free and non-commercial. Voice cloning is local-only — please only clone voices
-  you own or have permission to use.
+- **Speech model:** Kyutai's **Pocket TTS**, licensed
+  **[CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)** with additional
+  prohibited-use terms. Guten-Speak downloads a derived bundle from its own
+  [release area](https://github.com/etnt/guten-speak/releases) and credits
+  Kyutai. Do not use synthesized speech for non-consensual cloning,
+  impersonation, deception, fraud, harassment, or privacy-invasive purposes.
+- **Voice cloning is local-only** — please only clone voices you own or have the
+  explicit consent of the person they belong to.
+- **Bundled voices** (Reginald Ashworth, Deja Thoris) are synthetic samples, not
+  recordings of real people.
+- Full third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+  (also viewable in-app under **Settings → About**).

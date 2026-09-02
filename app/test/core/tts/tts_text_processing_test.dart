@@ -8,10 +8,7 @@ void main() {
         normalizeTtsText('He said "hello" to \u201Ceveryone\u201D there.'),
         'He said hello to everyone there.',
       );
-      expect(
-        normalizeTtsText('low\u201Ehigh\u201Fmarks'),
-        'lowhighmarks',
-      );
+      expect(normalizeTtsText('low\u201Ehigh\u201Fmarks'), 'lowhighmarks');
     });
 
     test('folds curly single quotes to a plain apostrophe', () {
@@ -68,10 +65,12 @@ void main() {
           'Alpha, beta; gamma: delta epsilon zeta eta theta iota kappa lambda '
           'mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega.';
       final parts = splitTtsRetryPhrases(text, maxChars: 50);
-      final rejoinedWords =
-          parts.expand((p) => p.split(RegExp(r'\s+'))).where((w) => w.isNotEmpty);
-      final originalWords =
-          text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+      final rejoinedWords = parts
+          .expand((p) => p.split(RegExp(r'\s+')))
+          .where((w) => w.isNotEmpty);
+      final originalWords = text
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty);
       expect(rejoinedWords.length, originalWords.length);
     });
   });

@@ -10,8 +10,7 @@ String _$ravenModelManagerHash() => r'3f5c5ea27f2eaf7b5de8a06cca0bd91f83229f01';
 
 /// Downloads/locates the on-device Raven model (from the guten-speak release
 /// area only). Raven is the app's sole narration engine at runtime (int8,
-/// 4-step flow, temperature 0.20 — the winning production config, ~27x faster
-/// than sherpa on-device).
+/// 4-step flow, temperature 0.20 — the winning production config).
 ///
 /// Copied from [ravenModelManager].
 @ProviderFor(ravenModelManager)
@@ -28,27 +27,6 @@ final ravenModelManagerProvider = Provider<RavenModelManager>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef RavenModelManagerRef = ProviderRef<RavenModelManager>;
-String _$modelManagerHash() => r'95d6ad03a96f213a3268a6a0375444d72b125b61';
-
-/// Downloads/locates the on-device sherpa PocketTTS model. Retained for the
-/// benchmark harness and so the storage screen can reclaim a sherpa model left
-/// on disk; it is not used for narration.
-///
-/// Copied from [modelManager].
-@ProviderFor(modelManager)
-final modelManagerProvider = Provider<ModelManager>.internal(
-  modelManager,
-  name: r'modelManagerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$modelManagerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef ModelManagerRef = ProviderRef<ModelManager>;
 String _$modelInstalledHash() => r'15ddbb4e020d77bb02f0cdeafb13aa057a5cfb99';
 
 /// Whether the Raven model is already installed, so the UI can show "Prepare"

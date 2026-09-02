@@ -122,13 +122,7 @@ class Distribution {
 
   factory Distribution.fromSamples(List<double> samples) {
     if (samples.isEmpty) {
-      return const Distribution(
-        count: 0,
-        median: 0,
-        p90: 0,
-        p95: 0,
-        max: 0,
-      );
+      return const Distribution(count: 0, median: 0, p90: 0, p95: 0, max: 0);
     }
     final sorted = [...samples]..sort();
     return Distribution(

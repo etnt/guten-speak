@@ -129,7 +129,12 @@ class LookAheadScheduler {
           );
           await synthesize(units[target], outputPath);
           if (_disposed) break;
-          await cache.record(bookId, voiceId, synthesisProfileId, units[target]);
+          await cache.record(
+            bookId,
+            voiceId,
+            synthesisProfileId,
+            units[target],
+          );
           _markReady(target);
         } catch (error) {
           _emit(SynthEvent(SynthEventKind.failed, target, error));

@@ -23,11 +23,12 @@ class ArchiveIntegrityException implements Exception {
   ArchiveIntegrityException.shaMismatch({
     required String expected,
     required String actual,
-  }) : message = 'Archive integrity check failed: expected SHA-256 $expected '
-            'but got $actual';
+  }) : message =
+           'Archive integrity check failed: expected SHA-256 $expected '
+           'but got $actual';
 
   ArchiveIntegrityException.unsafePath(String name)
-      : message = 'Refusing to extract unsafe archive path: $name';
+    : message = 'Refusing to extract unsafe archive path: $name';
 
   final String message;
 
@@ -116,9 +117,7 @@ Future<void> _download(
       }
     }
     if (response.statusCode != 200 && response.statusCode != 206) {
-      throw Exception(
-        'Download failed: HTTP ${response.statusCode} for $url',
-      );
+      throw Exception('Download failed: HTTP ${response.statusCode} for $url');
     }
 
     final contentLength = response.contentLength;

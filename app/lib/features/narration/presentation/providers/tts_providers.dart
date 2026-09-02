@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../../core/tts/model_manager.dart';
 import '../../../../core/tts/raven_model_manager.dart';
 import '../../../../core/tts/raven_tts_engine.dart';
 import '../../../../core/tts/tts_engine.dart';
@@ -15,16 +14,9 @@ part 'tts_providers.g.dart';
 
 /// Downloads/locates the on-device Raven model (from the guten-speak release
 /// area only). Raven is the app's sole narration engine at runtime (int8,
-/// 4-step flow, temperature 0.20 — the winning production config, ~27x faster
-/// than sherpa on-device).
+/// 4-step flow, temperature 0.20 — the winning production config).
 @Riverpod(keepAlive: true)
 RavenModelManager ravenModelManager(Ref ref) => RavenModelManager();
-
-/// Downloads/locates the on-device sherpa PocketTTS model. Retained for the
-/// benchmark harness and so the storage screen can reclaim a sherpa model left
-/// on disk; it is not used for narration.
-@Riverpod(keepAlive: true)
-ModelManager modelManager(Ref ref) => ModelManager();
 
 /// Whether the Raven model is already installed, so the UI can show "Prepare"
 /// vs a ready state without kicking off a download.

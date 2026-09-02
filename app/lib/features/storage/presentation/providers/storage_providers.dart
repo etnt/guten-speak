@@ -17,7 +17,6 @@ Future<StorageManager> storageManager(Ref ref) async {
   final synthCache = await ref.watch(synthCacheProvider.future);
   final voiceLibrary = await ref.watch(voiceLibraryProvider.future);
   return StorageManager(
-    sherpaManager: ref.watch(modelManagerProvider),
     ravenManager: ref.watch(ravenModelManagerProvider),
     synthCache: synthCache,
     voiceLibrary: voiceLibrary,

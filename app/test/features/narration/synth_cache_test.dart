@@ -41,11 +41,7 @@ void main() {
 
   /// Reserves, writes [bytes] to, and records a clip for one unit under a
   /// profile — the same reserve→synthesize→record flow the scheduler drives.
-  Future<String> render(
-    String profileId,
-    int index, {
-    int bytes = 8,
-  }) async {
+  Future<String> render(String profileId, int index, {int bytes = 8}) async {
     final path = await cache.reservePath(1, 'v', profileId, index);
     await File(path).writeAsBytes(List<int>.filled(bytes, 0));
     await cache.record(1, 'v', profileId, _unit(index));

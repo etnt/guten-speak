@@ -303,4 +303,3 @@ void writeWavPcm16Atomic(String path, Float32List samples, int sampleRate) {
   tmp.writeAsBytesSync(bytes, flush: true);
   tmp.renameSync(path);
 }
-

@@ -51,10 +51,8 @@ class RavenModelManager {
   }
 
   /// Returns the resolved model paths (whether or not the model is installed).
-  Future<RavenModelPaths> paths() async => _pathsFor(
-    (await _modelDir()).path,
-    (await _voicesDir()).path,
-  );
+  Future<RavenModelPaths> paths() async =>
+      _pathsFor((await _modelDir()).path, (await _voicesDir()).path);
 
   /// Total bytes the Raven model occupies on disk (the extracted payload plus
   /// any leftover partial download archive). Zero when nothing is installed.
@@ -80,7 +78,11 @@ class RavenModelManager {
 
   /// Deletes the installed Raven model (and any partial download) from disk. The
   /// next narration opt-in re-downloads it. Safe to call when nothing is
-  /// installed. Voice clips are left untouched.
+  /// installed.
+  ///
+  /// The Raven per-voice cache artifacts (`.emb`/`.kv`) are model-specific, so
+  /// they are purged too — a reinstalled/upgraded model regenerates them. The
+  /// voice `.wav` clips themselves are left untouched (owned by `VoiceLibrary`).
   Future<void> deleteFromDisk() async {
     final dir = await _modelDir();
     if (dir.existsSync()) {
@@ -94,6 +96,7 @@ class RavenModelManager {
     if (part.existsSync()) {
       await part.delete();
     }
+    await purgeRavenVoiceCache(await _voicesDir());
   }
 
   /// Returns the model paths, downloading + extracting the archive if missing.
@@ -116,6 +119,10 @@ class RavenModelManager {
 
     if (File('${modelDir.path}/$_mainGraph').existsSync() &&
         File('${modelDir.path}/$_tokenizer').existsSync()) {
+      await reconcileRavenVoiceCache(
+        voicesDir: voicesDir,
+        modelManifestSha: modelManifestSha,
+      );
       onStatus?.call('Model already installed.');
       return paths;
     }
@@ -179,6 +186,13 @@ class RavenModelManager {
       }
     }
 
+    // A freshly installed (or upgraded) model must not reuse voice embeddings
+    // built against a different model; drop stale artifacts before first use.
+    await reconcileRavenVoiceCache(
+      voicesDir: voicesDir,
+      modelManifestSha: modelManifestSha,
+    );
+
     onStatus?.call('Voice model ready.');
     return paths;
   }
@@ -212,4 +226,57 @@ class RavenModelManager {
         voicesDir: voicesDir,
         tokenizerPath: '$modelDir/$_tokenizer',
       );
+}
+
+/// Marker file (inside the Raven voice `.cache/` directory) recording which
+/// model manifest the cached `.emb`/`.kv` artifacts were built against, so a
+/// model upgrade can invalidate stale per-voice caches.
+const String _voiceCacheModelMarker = '.model-manifest';
+
+/// Deletes every Raven per-voice cache artifact (`.emb`/`.kv`) under
+/// `<voicesDir>/.cache/`, plus the model marker. The reference `.wav` clips are
+/// left untouched. Safe to call when the cache directory does not exist.
+Future<void> purgeRavenVoiceCache(Directory voicesDir) async {
+  final cacheDir = Directory('${voicesDir.path}/.cache');
+  if (!cacheDir.existsSync()) return;
+  await for (final entity in cacheDir.list(followLinks: false)) {
+    if (entity is File &&
+        (entity.path.endsWith('.emb') || entity.path.endsWith('.kv'))) {
+      await entity.delete();
+    }
+  }
+  final marker = File('${cacheDir.path}/$_voiceCacheModelMarker');
+  if (marker.existsSync()) {
+    await marker.delete();
+  }
+}
+
+/// Ensures the Raven per-voice cache under `<voicesDir>/.cache/` belongs to
+/// [modelManifestSha]. When a marker records a *different* model, the stale
+/// `.emb`/`.kv` artifacts are deleted so Raven regenerates them for the new
+/// model. The marker is then written with the current model.
+///
+/// A missing marker is treated as "in sync" (adopt the current model without
+/// purging), which avoids needlessly discarding valid warm caches the first
+/// time this runs.
+Future<void> reconcileRavenVoiceCache({
+  required Directory voicesDir,
+  required String modelManifestSha,
+}) async {
+  final cacheDir = Directory('${voicesDir.path}/.cache');
+  final marker = File('${cacheDir.path}/$_voiceCacheModelMarker');
+  final recorded = marker.existsSync()
+      ? (await marker.readAsString()).trim()
+      : null;
+  if (recorded == modelManifestSha) return;
+  if (recorded != null && cacheDir.existsSync()) {
+    await for (final entity in cacheDir.list(followLinks: false)) {
+      if (entity is File &&
+          (entity.path.endsWith('.emb') || entity.path.endsWith('.kv'))) {
+        await entity.delete();
+      }
+    }
+  }
+  await cacheDir.create(recursive: true);
+  await marker.writeAsString(modelManifestSha, flush: true);
 }

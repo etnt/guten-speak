@@ -77,36 +77,36 @@ class RavenTtsEngine implements TtsEngine {
 
   @override
   SynthesisProfile get synthesisProfile => SynthesisProfile(
-        engineId: engineId,
-        engineRevision: kEngineRevision,
-        onnxRuntimeVersion: '1.23.2',
-        modelManifestSha: modelManifestSha,
-        precision: precision,
-        solverSteps: lsdSteps,
-        temperatureMilli: (temperature * 1000).round(),
-        // Raven seeds from wall-clock time, so output is not reproducible; a
-        // fixed sentinel keeps the profile stable across runs.
-        seed: 0,
-        // Raven bounds generation by end-of-stream, not a fixed frame cap.
-        maxFrames: 0,
-        sampleRate: 24000,
-        // Per-voice scoping is a Phase 4 cache concern; the profile is
-        // voice-agnostic and the benchmark records the voice id separately.
-        voiceContentSha: '',
-        textPolicyVersion: kTtsTextPolicyVersion,
-        audioPolicyVersion: kTtsAudioPolicyVersion,
-      );
+    engineId: engineId,
+    engineRevision: kEngineRevision,
+    onnxRuntimeVersion: '1.23.2',
+    modelManifestSha: modelManifestSha,
+    precision: precision,
+    solverSteps: lsdSteps,
+    temperatureMilli: (temperature * 1000).round(),
+    // Raven seeds from wall-clock time, so output is not reproducible; a
+    // fixed sentinel keeps the profile stable across runs.
+    seed: 0,
+    // Raven bounds generation by end-of-stream, not a fixed frame cap.
+    maxFrames: 0,
+    sampleRate: 24000,
+    // Per-voice scoping is a Phase 4 cache concern; the profile is
+    // voice-agnostic and the benchmark records the voice id separately.
+    voiceContentSha: '',
+    textPolicyVersion: kTtsTextPolicyVersion,
+    audioPolicyVersion: kTtsAudioPolicyVersion,
+  );
 
   @override
   Future<void> initialize() => _service.init(
-        modelsDir: _paths.modelsDir,
-        voicesDir: _paths.voicesDir,
-        tokenizerPath: _paths.tokenizerPath,
-        precision: precision,
-        temperature: temperature,
-        lsdSteps: lsdSteps,
-        numThreads: numThreads,
-      );
+    modelsDir: _paths.modelsDir,
+    voicesDir: _paths.voicesDir,
+    tokenizerPath: _paths.tokenizerPath,
+    precision: precision,
+    temperature: temperature,
+    lsdSteps: lsdSteps,
+    numThreads: numThreads,
+  );
 
   @override
   Future<TtsSynthesisResult> synthesize(TtsSynthesisRequest request) async {

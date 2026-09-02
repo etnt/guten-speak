@@ -9,8 +9,8 @@ import 'package:pocket_tts_raven/pocket_tts_raven.dart';
 import 'tts_text_processing.dart';
 import 'wav_io.dart';
 
-/// Result of one Raven clone + synthesize call, with per-stage timings mirroring
-/// the sherpa [SpeakResult] shape so both engines report the same facts.
+/// Result of one Raven clone + synthesize call, with per-stage timings so
+/// callers report the same synthesis facts across engines.
 class RavenSpeakResult {
   const RavenSpeakResult({
     required this.sampleRate,
@@ -57,10 +57,10 @@ class RavenSpeakException implements Exception {
 
 /// Owns the native Pocket TTS Raven engine in a dedicated background isolate.
 ///
-/// Like the sherpa [TtsService], all native work (loading the ~160 MB int8
-/// models and streaming audio) is blocking and CPU-heavy, so it runs off the UI
-/// isolate. Unlike sherpa, Raven streams and is genuinely interruptible:
-/// [cancel] aborts the in-flight synthesis within one decode batch.
+/// All native work (loading the ~160 MB int8 models and streaming audio) is
+/// blocking and CPU-heavy, so it runs off the UI isolate. Raven streams and is
+/// genuinely interruptible: [cancel] aborts the in-flight synthesis within one
+/// decode batch.
 ///
 /// The isolate protocol is a request/response RPC over ports. The worker uses
 /// `ReceivePort.listen` (not `await for`) so a `cancel` message is delivered
@@ -185,7 +185,10 @@ class RavenTtsService {
       if (!_handshake.isCompleted || _pending.isNotEmpty) {
         final reason = _initialized ? 'native_error' : 'create_failed';
         _failAll(
-          RavenSpeakException(reason, 'Raven worker isolate exited unexpectedly'),
+          RavenSpeakException(
+            reason,
+            'Raven worker isolate exited unexpectedly',
+          ),
         );
       }
       return;

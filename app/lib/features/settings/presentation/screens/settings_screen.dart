@@ -85,6 +85,23 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(AppConstants.routeStorage),
           ),
+          const Divider(),
+          const _SectionHeader('About'),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Licenses & notices'),
+            subtitle: const Text(
+              'Open-source licenses and speech-model attribution',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: AppConstants.appName,
+              applicationVersion: AppConstants.appVersion,
+              applicationLegalese:
+                  '© Guten-Speak contributors. App code licensed under MPL-2.0.',
+            ),
+          ),
         ],
       ),
     );

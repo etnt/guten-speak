@@ -6,7 +6,7 @@ part of 'storage_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$storageManagerHash() => r'ff533b3117f1b5b653da776760e9a8343baab55e';
+String _$storageManagerHash() => r'1979dc9b921f804f774be7cbc9b6fd3a5a9c1c55';
 
 /// The storage manager, wired to the model, narrated-audio cache and voice
 /// library.

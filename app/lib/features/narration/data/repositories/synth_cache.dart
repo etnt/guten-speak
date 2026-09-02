@@ -23,12 +23,7 @@ class SynthCache implements NarrationAudioCache {
   final SynthCacheDataSource _data;
   final Directory _audioRoot;
 
-  File _fileFor(
-    int bookId,
-    String voiceId,
-    String profileId,
-    int unitIndex,
-  ) {
+  File _fileFor(int bookId, String voiceId, String profileId, int unitIndex) {
     return File(
       p.join(
         _audioRoot.path,
@@ -47,7 +42,12 @@ class SynthCache implements NarrationAudioCache {
     String synthesisProfileId,
     NarrationUnit unit,
   ) async {
-    final row = await _data.get(bookId, voiceId, unit.index, synthesisProfileId);
+    final row = await _data.get(
+      bookId,
+      voiceId,
+      unit.index,
+      synthesisProfileId,
+    );
     if (row == null) return null;
 
     // Stale text (book changed under this index) → re-render.

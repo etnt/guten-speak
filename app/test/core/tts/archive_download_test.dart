@@ -5,8 +5,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guten_speak/core/tts/archive_download.dart';
 
-/// Host tests for the shared model-download utility that both the sherpa and
-/// Raven managers delegate to. These exercise the parts that do NOT depend on
+/// Host tests for the shared model-download utility that the Raven manager
+/// delegates to. These exercise the parts that do NOT depend on
 /// `path_provider` (extraction layout, fallback, resume, cancellation).
 void main() {
   late Directory tmp;
@@ -20,10 +20,7 @@ void main() {
   });
 
   /// Builds a `.tar.bz2` at [path] whose entries are [files] (name -> bytes).
-  Future<void> writeTarBz2(
-    String path,
-    Map<String, List<int>> files,
-  ) async {
+  Future<void> writeTarBz2(String path, Map<String, List<int>> files) async {
     final archive = Archive();
     files.forEach((name, bytes) {
       archive.addFile(ArchiveFile(name, bytes.length, bytes));
@@ -68,7 +65,9 @@ void main() {
       await writeTarBz2(archivePath, {
         'bundle/a.bin': [1, 2, 3],
       });
-      final sha = sha256.convert(File(archivePath).readAsBytesSync()).toString();
+      final sha = sha256
+          .convert(File(archivePath).readAsBytesSync())
+          .toString();
 
       final dest = Directory('${tmp.path}/out')..createSync();
       await extractTarBz2(File(archivePath), dest, expectedSha256: sha);
@@ -84,11 +83,7 @@ void main() {
 
       final dest = Directory('${tmp.path}/out')..createSync();
       await expectLater(
-        extractTarBz2(
-          File(archivePath),
-          dest,
-          expectedSha256: 'deadbeef' * 8,
-        ),
+        extractTarBz2(File(archivePath), dest, expectedSha256: 'deadbeef' * 8),
         throwsA(isA<ArchiveIntegrityException>()),
       );
 
@@ -140,10 +135,7 @@ void main() {
 
       expect(target.existsSync(), isTrue);
       expect(await target.readAsBytes(), payload);
-      expect(
-        statuses.any((s) => s.contains('trying another source')),
-        isTrue,
-      );
+      expect(statuses.any((s) => s.contains('trying another source')), isTrue);
     });
 
     test('throws ModelDownloadCancelled when cancelled mid-stream', () async {
@@ -179,7 +171,9 @@ void main() {
       server.listen((req) async {
         final range = req.headers.value(HttpHeaders.rangeHeader);
         if (range != null && range.startsWith('bytes=')) {
-          final start = int.parse(range.substring('bytes='.length).split('-')[0]);
+          final start = int.parse(
+            range.substring('bytes='.length).split('-')[0],
+          );
           req.response.statusCode = HttpStatus.partialContent;
           req.response.add(payload.sublist(start));
         } else {

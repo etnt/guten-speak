@@ -32,4 +32,3 @@ final DynamicLibrary _dylib = openPocketTtsRavenLibrary();
 /// Native calls here are blocking; heavy calls (create, warmup, stream reads)
 /// must be driven from a dedicated isolate, not the UI isolate.
 final PocketTtsRavenBindings bindings = PocketTtsRavenBindings(_dylib);
-

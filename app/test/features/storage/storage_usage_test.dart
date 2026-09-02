@@ -7,7 +7,6 @@ void main() {
     const usage = StorageUsage(
       models: <ModelUsage>[
         ModelUsage(id: 'raven', label: 'Raven', installed: true, bytes: 400),
-        ModelUsage(id: 'sherpa', label: 'Sherpa', installed: false, bytes: 0),
       ],
       perBookAudio: <BookAudioUsage>[
         BookAudioUsage(bookId: 1, title: 'A', bytes: 30),

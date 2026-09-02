@@ -182,12 +182,11 @@ class VoiceLibrary {
 /// removes its cached artifacts.
 List<String> ravenVoiceCachePaths(String voicesDir, String voiceWavPath) {
   final slash = voiceWavPath.lastIndexOf(RegExp(r'[/\\]'));
-  final fileName = slash >= 0 ? voiceWavPath.substring(slash + 1) : voiceWavPath;
+  final fileName = slash >= 0
+      ? voiceWavPath.substring(slash + 1)
+      : voiceWavPath;
   final dot = fileName.lastIndexOf('.');
   final stem = dot >= 0 ? fileName.substring(0, dot) : fileName;
   if (stem.isEmpty) return const <String>[];
-  return <String>[
-    '$voicesDir/.cache/$stem.emb',
-    '$voicesDir/.cache/$stem.kv',
-  ];
+  return <String>['$voicesDir/.cache/$stem.emb', '$voicesDir/.cache/$stem.kv'];
 }
