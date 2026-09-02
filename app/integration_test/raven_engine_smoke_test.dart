@@ -19,9 +19,9 @@ import 'package:path_provider/path_provider.dart';
 ///
 ///   1. `flutter install --debug -d <device>` (debug APK so run-as works)
 ///   2. `bash tools/push_raven_model.sh <device>` (stages the int8 bundle+voice)
-///   3. `flutter drive --driver=test_driver/integration_test.dart \
+///   3. flutter drive --driver=test_driver/integration_test.dart \
 ///        --target=integration_test/raven_engine_smoke_test.dart \
-///        --profile -d <device>`
+///        --profile -d `<device>`
 ///
 /// It exercises the full path the app will use: `RavenTtsEngine.initialize()`
 /// (ptt_create + model load), then two `synthesize()` calls (stream read loop,

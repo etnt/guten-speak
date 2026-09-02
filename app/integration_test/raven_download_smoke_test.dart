@@ -20,7 +20,7 @@ import 'package:path_provider/path_provider.dart';
 /// what the app does the first time a user opts into narration with Raven (the
 /// default engine). Run on a device with network:
 ///
-///   flutter test integration_test/raven_download_smoke_test.dart -d <device>
+///   flutter test integration_test/raven_download_smoke_test.dart -d `<device>`
 ///
 /// The voice is not part of the archive; it ships as a Flutter asset, so this
 /// test materializes it into the voices dir the way `VoiceLibrary` does.
