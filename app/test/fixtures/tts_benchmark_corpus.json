@@ -1,0 +1,76 @@
+{
+    "version": 1,
+    "note": "Representative engine-independent TTS benchmark corpus. This fixture exercises the runner and result schema across category buckets. The full measurement corpus (>=100 reading units per plan 11.2, plus a >=1000-unit soak set) is assembled from real book text for on-device runs.",
+    "units": [
+        {
+            "id": "short-001",
+            "category": "short",
+            "text": "He nodded."
+        },
+        {
+            "id": "short-002",
+            "category": "short",
+            "text": "The door closed."
+        },
+        {
+            "id": "median-001",
+            "category": "median",
+            "text": "She walked to the window and looked out over the quiet harbour, where the last of the fishing boats were coming home."
+        },
+        {
+            "id": "median-002",
+            "category": "median",
+            "text": "It was the kind of afternoon that seemed to stretch on forever, warm and still, with the smell of cut grass drifting in from the fields beyond."
+        },
+        {
+            "id": "near-limit-001",
+            "category": "near_limit",
+            "text": "Long afterward, when the whole affair had passed into memory and the town had settled back into its ordinary rhythms, he would still find himself returning, again and again, to that single evening on the pier, and to everything that had been said and left unsaid between them under the failing light."
+        },
+        {
+            "id": "dialogue-001",
+            "category": "dialogue",
+            "text": "\u201CYou cannot mean that,\u201D she said, turning sharply. \u201CAfter everything we agreed?\u201D"
+        },
+        {
+            "id": "dialogue-002",
+            "category": "dialogue",
+            "text": "\u201CWait here,\u201D he whispered. \u201CI\u2019ll be back before the clock strikes twelve.\u201D"
+        },
+        {
+            "id": "numbers-001",
+            "category": "numbers",
+            "text": "The train departed at 6:45 and covered 312 miles before the first stop, arriving in 1874 at a station built in 1859."
+        },
+        {
+            "id": "numbers-002",
+            "category": "numbers",
+            "text": "He counted 1, 2, 3, then 10, 20, 30, and finally reached 100 without once losing his place."
+        },
+        {
+            "id": "names-001",
+            "category": "names",
+            "text": "Reginald Ashworth met Dejah Thoris at the corner of Kensington and Marlborough, near the old Featherstonehaugh estate."
+        },
+        {
+            "id": "names-002",
+            "category": "names",
+            "text": "Neither Siobhan nor Bartholomew could pronounce Przybylski, though Xiuying managed it easily."
+        },
+        {
+            "id": "smart-quotes-001",
+            "category": "smart_quotes",
+            "text": "It was, as she liked to say, \u201Cthe done thing\u201D \u2014 and he\u2019d never once thought to question it."
+        },
+        {
+            "id": "smart-quotes-002",
+            "category": "smart_quotes",
+            "text": "\u2018Curiouser and curiouser!\u2019 she cried, and the whole room seemed to hold its breath."
+        },
+        {
+            "id": "punctuation-001",
+            "category": "punctuation",
+            "text": "Well; that is to say \u2014 no, wait: it was never quite that simple, was it? Not really."
+        }
+    ]
+}

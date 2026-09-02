@@ -1,6 +1,13 @@
 # Build output
 build/
 
+# macOS Finder metadata
+.DS_Store
+
+# Regenerable TTS A/B listening samples + voice caches (produced by
+# tools/make_listen_samples.py). The measured *.json results stay tracked.
+plan/benchmark-results/listen/
+
 # Downloaded/extracted TTS model archives (fetched at runtime, ~168 MB)
 *.tar.bz2
 
@@ -25,3 +32,10 @@ dict/
 wn3.1.dict.tar.gz
 wordnet.sqlite
 android/
+
+# ...but keep the vendored Pocket TTS Raven plugin's Android config under version
+# control so the app builds from a clean clone (its own android/.gitignore still
+# excludes build outputs, local.properties and *.iml). The repo-root
+# android/release-keystore.jks and the example/poc android dirs stay ignored.
+!app/packages/pocket_tts_raven/android/
+.vscode/

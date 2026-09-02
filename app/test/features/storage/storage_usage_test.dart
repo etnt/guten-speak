@@ -5,8 +5,9 @@ import 'package:guten_speak/features/storage/presentation/screens/storage_screen
 void main() {
   group('StorageUsage', () {
     const usage = StorageUsage(
-      modelInstalled: true,
-      modelBytes: 400,
+      models: <ModelUsage>[
+        ModelUsage(id: 'raven', label: 'Raven', installed: true, bytes: 400),
+      ],
       perBookAudio: <BookAudioUsage>[
         BookAudioUsage(bookId: 1, title: 'A', bytes: 30),
         BookAudioUsage(bookId: 2, title: 'B', bytes: 70),
@@ -19,19 +20,28 @@ void main() {
       expect(usage.audioBytes, 100);
     });
 
-    test('totalBytes sums model, audio and voices', () {
+    test('modelsBytes sums every engine model', () {
+      expect(usage.modelsBytes, 400);
+    });
+
+    test('anyModelInstalled reflects installed models', () {
+      expect(usage.anyModelInstalled, isTrue);
+    });
+
+    test('totalBytes sums models, audio and voices', () {
       expect(usage.totalBytes, 400 + 100 + 50);
     });
 
     test('empty audio yields zero totals', () {
       const empty = StorageUsage(
-        modelInstalled: false,
-        modelBytes: 0,
+        models: <ModelUsage>[],
         perBookAudio: <BookAudioUsage>[],
         voiceCount: 0,
         voicesBytes: 0,
       );
       expect(empty.audioBytes, 0);
+      expect(empty.modelsBytes, 0);
+      expect(empty.anyModelInstalled, isFalse);
       expect(empty.totalBytes, 0);
     });
   });

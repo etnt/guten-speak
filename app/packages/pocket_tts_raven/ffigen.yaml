@@ -1,0 +1,18 @@
+# Run with `dart run ffigen --config ffigen.yaml`.
+name: PocketTtsRavenBindings
+description: |
+  Bindings for the vendored Pocket TTS Raven C API (`third_party/raven/include/pocket_tts.h`).
+
+  Regenerate bindings with `dart run ffigen --config ffigen.yaml`.
+output: 'lib/pocket_tts_raven_bindings_generated.dart'
+headers:
+  entry-points:
+    - 'third_party/raven/include/pocket_tts.h'
+  include-directives:
+    - 'third_party/raven/include/pocket_tts.h'
+functions:
+  include:
+    - 'ptt_.*'
+comments:
+  style: any
+  length: full

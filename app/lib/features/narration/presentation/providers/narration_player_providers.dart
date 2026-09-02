@@ -25,6 +25,7 @@ Future<NarrationAudioHandler> narrationAudioHandler(Ref ref) async {
       cache: cache,
       progress: NarrationProgressDataSource(db),
       synthesize: engine.synthesize,
+      profileId: () => engine.synthesisProfileId,
     ),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'se.kruskakli.guten_speak.narration',

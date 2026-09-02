@@ -17,7 +17,7 @@ Future<StorageManager> storageManager(Ref ref) async {
   final synthCache = await ref.watch(synthCacheProvider.future);
   final voiceLibrary = await ref.watch(voiceLibraryProvider.future);
   return StorageManager(
-    modelManager: ref.watch(modelManagerProvider),
+    ravenManager: ref.watch(ravenModelManagerProvider),
     synthCache: synthCache,
     voiceLibrary: voiceLibrary,
   );
@@ -40,9 +40,9 @@ class StorageController extends _$StorageController {
   @override
   void build() {}
 
-  Future<void> deleteModel() async {
+  Future<void> deleteModel(String engineId) async {
     final manager = await ref.read(storageManagerProvider.future);
-    await manager.deleteModel();
+    await manager.deleteModel(engineId);
     ref.invalidate(modelInstalledProvider);
     ref.invalidate(storageUsageProvider);
   }

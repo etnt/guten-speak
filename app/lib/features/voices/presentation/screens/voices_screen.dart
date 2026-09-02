@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/widgets/state_views.dart';
 import '../../domain/entities/voice.dart';
@@ -68,6 +69,9 @@ class VoicesScreen extends ConsumerWidget {
   }
 
   Future<void> _importVoice(BuildContext context, WidgetRef ref) async {
+    final consented = await _ensureCloneConsent(context);
+    if (!consented || !context.mounted) return;
+
     final files = await FilePickerPlatform.instance.pickFiles(
       type: FileType.custom,
       allowedExtensions: <String>['wav'],
@@ -95,6 +99,44 @@ class VoicesScreen extends ConsumerWidget {
         );
       }
     }
+  }
+
+  /// Shows a one-time voice-cloning consent acknowledgment before the first
+  /// import. Returns true if the user has accepted (now or previously).
+  Future<bool> _ensureCloneConsent(BuildContext context) async {
+    const consentKey = 'voice_clone_consent_accepted';
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(consentKey) ?? false) return true;
+    if (!context.mounted) return false;
+
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Before you add a voice'),
+        content: const Text(
+          'Voice cloning stays on your device. Only clone a voice you own, or '
+          'one you have the explicit consent of the person it belongs to. Do '
+          'not use synthesized speech to impersonate, deceive, defraud, or '
+          'harass anyone. Generated speech is synthetic.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('I understand'),
+          ),
+        ],
+      ),
+    );
+
+    if (agreed ?? false) {
+      await prefs.setBool(consentKey, true);
+      return true;
+    }
+    return false;
   }
 
   Future<String?> _promptName(BuildContext context, {required String initial}) {

@@ -689,7 +689,7 @@ class _BookDownloadControllerProviderElement
 }
 
 String _$bookImportControllerHash() =>
-    r'5ae65e481919878e7997df30a916762e555343ad';
+    r'983cf79738908a12c661fb6256867bcd09b7f578';
 
 /// Imports a local `.epub` file into the library. [state] is `true` while an
 /// import is in progress so the UI can show a spinner and disable the action.

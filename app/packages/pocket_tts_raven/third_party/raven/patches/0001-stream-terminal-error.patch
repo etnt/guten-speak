@@ -1,0 +1,82 @@
+# Pocket TTS Raven — guten-speak local patches
+#
+# 0001-stream-terminal-error: adds ptt_stream_error() + terminal error
+#   capture on the stream context so the app can distinguish a failed
+#   stream from a clean end (plan section 5.4). Against upstream rev
+#   abd26158ab50f954616eaf42296b09c4856489d7.
+
+--- a/include/pocket_tts.h	2026-09-01 20:05:26
++++ b/include/pocket_tts.h	2026-09-01 21:45:25
+@@ -93,6 +93,15 @@
+  * (e.g. the Emscripten runtime thread).                                 */
+ int ptt_stream_poll(void* stream_ctx, float** out_samples, int* out_len);
+ 
++/* [guten-speak patch: stream terminal-error contract]
++ * Query the terminal error state of a stream. Valid at any time before
++ * ptt_stream_end(); most useful once ptt_stream_read/poll has returned 0.
++ * Returns the terminal error code: 0 = none (still running or clean end),
++ * >0 = the stream ended because generation threw. When msg_buf is non-NULL
++ * and msg_buf_len > 0, copies up to msg_buf_len-1 bytes of a bounded UTF-8
++ * message plus a NUL terminator. Returns -1 for a NULL/invalid context.  */
++int ptt_stream_error(void* stream_ctx, char* msg_buf, int msg_buf_len);
++
+ /* Request a graceful abort; generation stops within one decode batch.
+  * Does not join or free — follow with ptt_stream_end.                   */
+ void ptt_stream_stop(void* stream_ctx);
+
+--- a/src/pocket_tts.cpp	2026-09-01 20:05:26
++++ b/src/pocket_tts.cpp	2026-09-01 21:45:52
+@@ -3943,6 +3943,9 @@
+     std::deque<std::pair<float*, size_t>> chunks;
+     bool done = false;
+     bool aborted = false;
++    // [guten-speak patch: stream terminal-error contract]
++    int error_code = 0;            // 0 = none, 1 = generation threw
++    std::string error_message;     // bounded UTF-8 detail (see catch below)
+ };
+ 
+ void* ptt_stream_start(void* handle, const char* text, const char* voice) {
+@@ -3967,6 +3970,20 @@
+             });
+         } catch (const std::exception& e) {
+             std::cerr << "[pocket-tts] stream error: " << e.what() << "\n";
++            // [guten-speak patch: stream terminal-error contract]
++            std::string msg(e.what());
++            if (msg.size() > 1024) msg.resize(1024);
++            std::lock_guard<std::mutex> lock(ctx->mtx);
++            ctx->error_code = 1;
++            ctx->error_message = std::move(msg);
++        } catch (...) {
++            // [guten-speak patch: stream terminal-error contract]
++            // Never let a non-std exception unwind out of the thread (would
++            // call std::terminate) or cross the C ABI.
++            std::cerr << "[pocket-tts] stream error: unknown exception\n";
++            std::lock_guard<std::mutex> lock(ctx->mtx);
++            ctx->error_code = 1;
++            ctx->error_message = "unknown exception";
+         }
+         {
+             std::lock_guard<std::mutex> lock(ctx->mtx);
+@@ -4014,6 +4031,22 @@
+     return 0;
+ }
+ 
++// [guten-speak patch: stream terminal-error contract]
++// Report whether a stream ended because generation threw. Valid before
++// ptt_stream_end(). Copies a bounded UTF-8 message into msg_buf when given.
++int ptt_stream_error(void* stream_ctx, char* msg_buf, int msg_buf_len) {
++    if (!stream_ctx) return -1;
++    auto* ctx = static_cast<ptt_stream_ctx*>(stream_ctx);
++    std::lock_guard<std::mutex> lock(ctx->mtx);
++    if (msg_buf && msg_buf_len > 0) {
++        size_t n = ctx->error_message.size();
++        if (n > static_cast<size_t>(msg_buf_len - 1)) n = static_cast<size_t>(msg_buf_len - 1);
++        std::memcpy(msg_buf, ctx->error_message.data(), n);
++        msg_buf[n] = '\0';
++    }
++    return ctx->error_code;
++}
++
+ // Request an abort without joining: generation notices within one decode
+ // batch and winds down; poll then returns 0 and stream_end joins a thread
+ // that has already finished. (Joining directly from the Emscripten runtime

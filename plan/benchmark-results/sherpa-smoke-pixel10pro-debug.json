@@ -1,0 +1,99 @@
+{
+    "schemaVersion": 1,
+    "engineId": "sherpa_onnx",
+    "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+    "profile": {
+        "audioPolicyVersion": 1,
+        "commaSoftening": null,
+        "engineId": "sherpa_onnx",
+        "engineRevision": "1.13.6",
+        "maxFrames": 160,
+        "modelManifestSha": "sherpa-pocket-fp32-2026-01",
+        "onnxRuntimeVersion": "1.27.1",
+        "precision": "fp32",
+        "sampleRate": 24000,
+        "schemaVersion": 1,
+        "seed": 1234,
+        "solverSteps": 28,
+        "temperatureMilli": 200,
+        "textPolicyVersion": 1,
+        "voiceContentSha": ""
+    },
+    "corpusVersion": 1,
+    "generatedAtIso": "2026-09-01T04:59:38.061144Z",
+    "coldLoadMillis": 6663,
+    "warmupMillis": 22369,
+    "aggregate": {
+        "totalUnits": 2,
+        "okUnits": 2,
+        "failedUnits": 0,
+        "totalAudioSeconds": 3.576791666666667,
+        "nativeRtf": {
+            "count": 2,
+            "median": 19.844926251309747,
+            "p90": 22.397876419407165,
+            "p95": 22.397876419407165,
+            "max": 22.397876419407165
+        },
+        "pipelineRtf": {
+            "count": 2,
+            "median": 21.774482147174986,
+            "p90": 22.750626751216632,
+            "p95": 22.750626751216632,
+            "max": 22.750626751216632
+        },
+        "completeMillis": {
+            "count": 2,
+            "median": 22513.0,
+            "p90": 57852.0,
+            "p95": 57852.0,
+            "max": 57852.0
+        },
+        "durationWeightedNativeRtf": 21.659914029099635,
+        "durationWeightedPipelineRtf": 22.468459862772733
+    },
+    "units": [
+        {
+            "unitId": "smoke-short",
+            "category": "short",
+            "charCount": 16,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 24814,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 20518,
+                "postProcessMillis": 34,
+                "wavWriteMillis": 2,
+                "requestToCompleteMillis": 22513,
+                "cacheWarm": null,
+                "audioSeconds": 1.0339166666666666,
+                "nativeRealTimeFactor": 19.844926251309747,
+                "pipelineRealTimeFactor": 21.774482147174986
+            }
+        },
+        {
+            "unitId": "smoke-dialogue",
+            "category": "dialogue",
+            "charCount": 33,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 61029,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 56955,
+                "postProcessMillis": 1,
+                "wavWriteMillis": 3,
+                "requestToCompleteMillis": 57852,
+                "cacheWarm": null,
+                "audioSeconds": 2.542875,
+                "nativeRealTimeFactor": 22.397876419407165,
+                "pipelineRealTimeFactor": 22.750626751216632
+            }
+        }
+    ]
+}

@@ -1,0 +1,246 @@
+{
+    "schemaVersion": 1,
+    "engineId": "sherpa_onnx",
+    "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+    "profile": {
+        "audioPolicyVersion": 1,
+        "commaSoftening": null,
+        "engineId": "sherpa_onnx",
+        "engineRevision": "1.13.6",
+        "maxFrames": 160,
+        "modelManifestSha": "sherpa-pocket-fp32-2026-01",
+        "onnxRuntimeVersion": "1.27.1",
+        "precision": "fp32",
+        "sampleRate": 24000,
+        "schemaVersion": 1,
+        "seed": 1234,
+        "solverSteps": 28,
+        "temperatureMilli": 200,
+        "textPolicyVersion": 1,
+        "voiceContentSha": ""
+    },
+    "corpusVersion": 1,
+    "generatedAtIso": "2026-09-01T07:54:38.348513Z",
+    "coldLoadMillis": 9636,
+    "warmupMillis": 15765,
+    "aggregate": {
+        "totalUnits": 9,
+        "okUnits": 9,
+        "failedUnits": 0,
+        "totalAudioSeconds": 23.806916666666663,
+        "nativeRtf": {
+            "count": 9,
+            "median": 14.597041140309397,
+            "p90": 16.826513554764155,
+            "p95": 16.826513554764155,
+            "max": 16.826513554764155
+        },
+        "pipelineRtf": {
+            "count": 9,
+            "median": 14.780517462676483,
+            "p90": 17.520750054509776,
+            "p95": 17.520750054509776,
+            "max": 17.520750054509776
+        },
+        "completeMillis": {
+            "count": 9,
+            "median": 31186.0,
+            "p90": 64678.0,
+            "p95": 64678.0,
+            "max": 64678.0
+        },
+        "durationWeightedNativeRtf": 12.887095136917496,
+        "durationWeightedPipelineRtf": 13.203347766580444
+    },
+    "units": [
+        {
+            "unitId": "short-001",
+            "category": "short",
+            "charCount": 26,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 30190,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 19458,
+                "postProcessMillis": 2,
+                "wavWriteMillis": 1,
+                "requestToCompleteMillis": 20422,
+                "cacheWarm": null,
+                "audioSeconds": 1.2579166666666666,
+                "nativeRealTimeFactor": 15.468433256045047,
+                "pipelineRealTimeFactor": 16.234779728386886
+            }
+        },
+        {
+            "unitId": "short-002",
+            "category": "short",
+            "charCount": 15,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 27518,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 19293,
+                "postProcessMillis": 1,
+                "wavWriteMillis": 1,
+                "requestToCompleteMillis": 20089,
+                "cacheWarm": null,
+                "audioSeconds": 1.1465833333333333,
+                "nativeRealTimeFactor": 16.826513554764155,
+                "pipelineRealTimeFactor": 17.520750054509776
+            }
+        },
+        {
+            "unitId": "short-003",
+            "category": "short",
+            "charCount": 18,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 26245,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 16660,
+                "postProcessMillis": 5,
+                "wavWriteMillis": 0,
+                "requestToCompleteMillis": 17647,
+                "cacheWarm": null,
+                "audioSeconds": 1.0935416666666666,
+                "nativeRealTimeFactor": 15.234901886073539,
+                "pipelineRealTimeFactor": 16.137473804534196
+            }
+        },
+        {
+            "unitId": "median-001",
+            "category": "median",
+            "charCount": 94,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 131576,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 63278,
+                "postProcessMillis": 50,
+                "wavWriteMillis": 231,
+                "requestToCompleteMillis": 64678,
+                "cacheWarm": null,
+                "audioSeconds": 5.482333333333333,
+                "nativeRealTimeFactor": 11.542165744512678,
+                "pipelineRealTimeFactor": 11.797531464704809
+            }
+        },
+        {
+            "unitId": "median-002",
+            "category": "median",
+            "charCount": 70,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 95843,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 48718,
+                "postProcessMillis": 50,
+                "wavWriteMillis": 12,
+                "requestToCompleteMillis": 49570,
+                "cacheWarm": null,
+                "audioSeconds": 3.9934583333333333,
+                "nativeRealTimeFactor": 12.199451185793434,
+                "pipelineRealTimeFactor": 12.41280010016381
+            }
+        },
+        {
+            "unitId": "dialogue-001",
+            "category": "dialogue",
+            "charCount": 41,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 75611,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 33528,
+                "postProcessMillis": 23,
+                "wavWriteMillis": 1,
+                "requestToCompleteMillis": 34174,
+                "cacheWarm": null,
+                "audioSeconds": 3.1504583333333334,
+                "nativeRealTimeFactor": 10.642261046673102,
+                "pipelineRealTimeFactor": 10.847310576503418
+            }
+        },
+        {
+            "unitId": "dialogue-002",
+            "category": "dialogue",
+            "charCount": 28,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 46083,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 21275,
+                "postProcessMillis": 1,
+                "wavWriteMillis": 1,
+                "requestToCompleteMillis": 21866,
+                "cacheWarm": null,
+                "audioSeconds": 1.920125,
+                "nativeRealTimeFactor": 11.080007811991406,
+                "pipelineRealTimeFactor": 11.387800273419698
+            }
+        },
+        {
+            "unitId": "names-001",
+            "category": "names",
+            "charCount": 39,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 49482,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 30572,
+                "postProcessMillis": 3,
+                "wavWriteMillis": 2,
+                "requestToCompleteMillis": 31186,
+                "cacheWarm": null,
+                "audioSeconds": 2.06175,
+                "nativeRealTimeFactor": 14.828179944222141,
+                "pipelineRealTimeFactor": 15.125985206741845
+            }
+        },
+        {
+            "unitId": "punctuation-001",
+            "category": "punctuation",
+            "charCount": 51,
+            "ok": true,
+            "result": {
+                "engineId": "sherpa_onnx",
+                "profileId": "e5a2423448a408f1d305902eb3c610cf0100ab3135e82087f69035866eff3ad1",
+                "sampleCount": 88818,
+                "sampleRate": 24000,
+                "requestToFirstChunkMillis": null,
+                "nativeGenerateMillis": 54020,
+                "postProcessMillis": 30,
+                "wavWriteMillis": 18,
+                "requestToCompleteMillis": 54699,
+                "cacheWarm": null,
+                "audioSeconds": 3.70075,
+                "nativeRealTimeFactor": 14.597041140309397,
+                "pipelineRealTimeFactor": 14.780517462676483
+            }
+        }
+    ]
+}

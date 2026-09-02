@@ -1,10 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required to download the on-device TTS model on first use (release
+         builds don't get the dev-only INTERNET permission that Flutter injects
+         into the debug/profile manifests). -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- audio_service: background media playback foreground service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <application
-        android:label="Guten-Speak"
+        android:label="${appName}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
