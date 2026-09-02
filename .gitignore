@@ -38,3 +38,4 @@ android/
 # excludes build outputs, local.properties and *.iml). The repo-root
 # android/release-keystore.jks and the example/poc android dirs stay ignored.
 !app/packages/pocket_tts_raven/android/
+.vscode/
