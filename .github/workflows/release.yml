@@ -62,9 +62,9 @@ jobs:
       # The visible app version comes from the pushed tag (e.g. v1.0.0); local
       # debug builds fall back to the `dev` default in AppConstants.appVersion.
       - name: Build release APK
-        run: flutter build apk --release --dart-define=APP_VERSION=${{ github.ref_name }}
+        run: flutter build apk --release --flavor prod --dart-define=APP_VERSION=${{ github.ref_name }}
 
       - name: Publish APK to the GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/app/outputs/flutter-apk/app-release.apk
+          files: app/build/app/outputs/flutter-apk/app-prod-release.apk
