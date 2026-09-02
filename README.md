@@ -14,6 +14,8 @@ on-device.
 <a href="screenshots/dictionary.jpeg"><img src="screenshots/dictionary.jpeg" alt="Dictionary screenshot" width="19%"></a>
 <a href="screenshots/settings-page.jpeg"><img src="screenshots/settings-page.jpeg" alt="Settings page screenshot" width="19%"></a>
 
+**Watch a demo:** [DEMO](https://youtu.be/2bANlGBUbDw?si=IgdIExeEnggg8aVN) 
+
 **Read _or_ listen.** Guten-Speak is a fully usable plain e-reader on its own.
 Narration is an **opt-in** mode layered on top — you never have to download the
 speech model or clone a voice if you just want to read.
