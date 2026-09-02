@@ -25,3 +25,9 @@ dict/
 wn3.1.dict.tar.gz
 wordnet.sqlite
 android/
+
+# ...but keep the vendored Pocket TTS Raven plugin's Android config under version
+# control so the app builds from a clean clone (its own android/.gitignore still
+# excludes build outputs, local.properties and *.iml). The repo-root
+# android/release-keystore.jks and the example/poc android dirs stay ignored.
+!app/packages/pocket_tts_raven/android/

@@ -1,0 +1,69 @@
+// The Android Gradle Plugin builds the native code with the Android NDK.
+
+group = "se.kruskakli.pocket_tts_raven"
+version = "1.0"
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        // The Android Gradle Plugin knows how to build native code with the NDK.
+        classpath("com.android.tools.build:gradle:9.0.1")
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+
+android {
+    namespace = "se.kruskakli.pocket_tts_raven"
+
+    // Bumping the plugin compileSdk version requires all clients of this plugin
+    // to bump the version in their app.
+    compileSdk = 36
+
+    // Pocket TTS Raven requires NDK r28 (validated in Phase 0/2).
+    ndkVersion = "28.2.13676358"
+
+    // Invoke the shared CMake build with the Android Gradle Plugin.
+    externalNativeBuild {
+        cmake {
+            path = "../src/CMakeLists.txt"
+
+            // Our CMakeLists uses FetchContent PATCH_COMMAND + modern features;
+            // pin to the side-installed SDK CMake 3.22.1.
+            version = "3.22.1"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    defaultConfig {
+        minSdk = 24
+
+        // We only ship a prebuilt ONNX Runtime for arm64-v8a.
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+
+        // Build only our FFI library; skip SentencePiece's CLI tools
+        // (spm_train/spm_encode/...), which don't link -llog and aren't needed.
+        externalNativeBuild {
+            cmake {
+                targets "pocket_tts_raven"
+            }
+        }
+    }
+}
