@@ -40,6 +40,14 @@ jobs:
           flutter-version: 3.44.0
           cache: true
 
+      # Cache the Gradle User Home so a re-run reuses already-downloaded
+      # artifacts instead of re-fetching them from Maven Central / the plugin
+      # portal (which occasionally returns transient 403s from CI runners).
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: app/android
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -61,8 +69,26 @@ jobs:
 
       # The visible app version comes from the pushed tag (e.g. v1.0.0); local
       # debug builds fall back to the `dev` default in AppConstants.appVersion.
+      # Retry with backoff so a transient artifact-registry 403 (Maven Central /
+      # plugin portal) doesn't fail the release; genuine build errors still fail
+      # after the final attempt.
       - name: Build release APK
-        run: flutter build apk --release --flavor prod --dart-define=APP_VERSION=${{ github.ref_name }}
+        run: |
+          set -u
+          for attempt in 1 2 3; do
+            echo "== Build attempt ${attempt}/3 =="
+            if flutter build apk --release --flavor prod \
+                --dart-define=APP_VERSION=${{ github.ref_name }}; then
+              exit 0
+            fi
+            if [ "${attempt}" -lt 3 ]; then
+              backoff=$((attempt * 30))
+              echo "Build failed (attempt ${attempt}); retrying in ${backoff}s..."
+              sleep "${backoff}"
+            fi
+          done
+          echo "All build attempts failed"
+          exit 1
 
       - name: Publish APK to the GitHub release
         uses: softprops/action-gh-release@v2
