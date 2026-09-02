@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "note": "Small (~100-word) engine-independent TTS benchmark corpus assembled from real public-domain book text (Project Gutenberg: Hans Christian Andersen's Fairy Tales). Used as a fast on-device pass to compare the sherpa baseline against Raven candidates on identical inputs. Regenerate with tools/build_benchmark_corpus.py.",
+  "source": "Project Gutenberg: Hans Christian Andersen's Fairy Tales (public domain)",
+  "totalWords": 75,
+  "totalChars": 382,
+  "units": [
+    {
+      "id": "short-001",
+      "category": "short",
+      "text": "Then came the Grasshopper."
+    },
+    {
+      "id": "short-002",
+      "category": "short",
+      "text": "How it bloomed!"
+    },
+    {
+      "id": "short-003",
+      "category": "short",
+      "text": "And what an odour!"
+    },
+    {
+      "id": "median-001",
+      "category": "median",
+      "text": "Three famous jumpers were they, as everyone would say, when they all met together in the room."
+    },
+    {
+      "id": "median-002",
+      "category": "median",
+      "text": "I jumped the highest; but in this world merit seldom meets its reward."
+    },
+    {
+      "id": "dialogue-001",
+      "category": "dialogue",
+      "text": "“But how did the child get his feet wet?”"
+    },
+    {
+      "id": "dialogue-002",
+      "category": "dialogue",
+      "text": "“Am I to hear a fairy tale?”"
+    },
+    {
+      "id": "names-001",
+      "category": "names",
+      "text": "The Flea was the first to step forward."
+    },
+    {
+      "id": "punctuation-001",
+      "category": "punctuation",
+      "text": "I opened it instantly and read: I laughed and wept."
+    }
+  ]
+}

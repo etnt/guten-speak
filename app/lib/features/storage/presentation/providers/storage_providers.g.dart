@@ -6,7 +6,7 @@ part of 'storage_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$storageManagerHash() => r'e2ae71e43fd1666b87d0c90e2743ae276886ff2b';
+String _$storageManagerHash() => r'ff533b3117f1b5b653da776760e9a8343baab55e';
 
 /// The storage manager, wired to the model, narrated-audio cache and voice
 /// library.
@@ -48,7 +48,7 @@ final storageUsageProvider = AutoDisposeFutureProvider<StorageUsage>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef StorageUsageRef = AutoDisposeFutureProviderRef<StorageUsage>;
-String _$storageControllerHash() => r'f44309147fcdfc20f137b21dc944f32769881c7c';
+String _$storageControllerHash() => r'5d43c5d29b67ff97181dce45e9fcd33df78610df';
 
 /// Performs storage delete/clear actions and refreshes the usage snapshot.
 ///

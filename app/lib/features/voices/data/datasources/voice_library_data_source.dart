@@ -111,7 +111,9 @@ class VoiceLibrary {
     return voice;
   }
 
-  /// Deletes a user voice (built-in voices are ignored).
+  /// Deletes a user voice (built-in voices are ignored), including any Raven
+  /// engine artifacts cached for it under `.cache/` (its `.emb` embedding and
+  /// `.kv` state).
   Future<void> remove(String id) async {
     final dir = _dir;
     if (dir == null) return;
@@ -122,17 +124,35 @@ class VoiceLibrary {
     if (file.existsSync()) {
       await file.delete();
     }
+    for (final path in ravenVoiceCachePaths(dir.path, voice.wavPath)) {
+      final cache = File(path);
+      if (cache.existsSync()) {
+        await cache.delete();
+      }
+    }
     _user.removeAt(idx);
     await _save();
   }
 
-  /// Total bytes of the imported (non-built-in) voice `.wav` files on disk.
+  /// Total bytes the imported (non-built-in) voices occupy on disk: their
+  /// `.wav` files plus any Raven engine cache artifacts (`.emb`/`.kv`) cached
+  /// for them under `.cache/`. Built-in voice caches are excluded, matching the
+  /// built-in `.wav` files (which are also not counted here).
   Future<int> userVoicesBytes() async {
+    final dir = _dir;
     var total = 0;
     for (final voice in _user) {
       final file = File(voice.wavPath);
       if (file.existsSync()) {
         total += await file.length();
+      }
+      if (dir != null) {
+        for (final path in ravenVoiceCachePaths(dir.path, voice.wavPath)) {
+          final cache = File(path);
+          if (cache.existsSync()) {
+            total += await cache.length();
+          }
+        }
       }
     }
     return total;
@@ -153,4 +173,21 @@ class VoiceLibrary {
     final index = File('${dir.path}/index.json');
     await index.writeAsString(jsonEncode(data), flush: true);
   }
+}
+
+/// The Raven engine caches per-voice artifacts under `<voicesDir>/.cache/`,
+/// named `{stem}.emb` (embedding) and `{stem}.kv` (KV state), where `stem` is
+/// the reference wav's filename without its extension. This mirrors the native
+/// `get_cache_path` (voices_dir/.cache/{stem}.{ext}) so deleting a voice also
+/// removes its cached artifacts.
+List<String> ravenVoiceCachePaths(String voicesDir, String voiceWavPath) {
+  final slash = voiceWavPath.lastIndexOf(RegExp(r'[/\\]'));
+  final fileName = slash >= 0 ? voiceWavPath.substring(slash + 1) : voiceWavPath;
+  final dot = fileName.lastIndexOf('.');
+  final stem = dot >= 0 ? fileName.substring(0, dot) : fileName;
+  if (stem.isEmpty) return const <String>[];
+  return <String>[
+    '$voicesDir/.cache/$stem.emb',
+    '$voicesDir/.cache/$stem.kv',
+  ];
 }

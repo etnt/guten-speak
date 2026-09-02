@@ -1,9 +1,10 @@
 import 'dart:io';
-import 'dart:isolate';
 
-import 'package:archive/archive_io.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+
+import 'archive_download.dart';
+
+export 'archive_download.dart' show ModelDownloadCancelled;
 
 /// Resolved absolute paths to the files that make up the PocketTTS model.
 class PocketModelPaths {
@@ -24,15 +25,6 @@ class PocketModelPaths {
   final String textConditioner;
   final String vocabJson;
   final String tokenScoresJson;
-}
-
-/// Raised when a download is aborted via the [ModelManager.ensureModel]
-/// cancellation callback, so callers can distinguish it from a real failure.
-class ModelDownloadCancelled implements Exception {
-  const ModelDownloadCancelled();
-
-  @override
-  String toString() => 'Model download cancelled';
 }
 
 /// Downloads and unpacks the sherpa-onnx PocketTTS (fp32) model on first use,
@@ -116,7 +108,7 @@ class ModelManager {
 
     final archiveFile = File('${modelsRoot.path}/$_modelName.tar.bz2');
     onStatus?.call('Downloading model (this happens only once)…');
-    await _downloadWithFallback(
+    await downloadArchiveWithFallback(
       _archiveUrls,
       archiveFile,
       onStatus: onStatus,
@@ -126,7 +118,7 @@ class ModelManager {
 
     onStatus?.call('Extracting model…');
     onProgress?.call(null);
-    await _extractTarBz2(archiveFile, modelsRoot);
+    await extractTarBz2(archiveFile, modelsRoot);
 
     // Clean up the archive to save space.
     if (archiveFile.existsSync()) {
@@ -153,18 +145,6 @@ class ModelManager {
     return Directory('${support.path}/models');
   }
 
-  /// Decompresses a `.tar.bz2` archive and extracts it into [destDir].
-  ///
-  /// The actual work runs in a short-lived isolate via [Isolate.run] because
-  /// bz2 decompression of the ~470 MB payload is CPU-bound and synchronous;
-  /// running it on the UI isolate froze the app and triggered Android's ANR
-  /// ("application doesn't respond") dialog.
-  Future<void> _extractTarBz2(File archiveFile, Directory destDir) async {
-    final archivePath = archiveFile.path;
-    final destPath = destDir.path;
-    await Isolate.run(() => _extractTarBz2Sync(archivePath, destPath));
-  }
-
   PocketModelPaths _pathsFor(String dir) => PocketModelPaths(
     lmFlow: '$dir/lm_flow.onnx',
     lmMain: '$dir/lm_main.onnx',
@@ -174,140 +154,4 @@ class ModelManager {
     vocabJson: '$dir/vocab.json',
     tokenScoresJson: '$dir/token_scores.json',
   );
-
-  /// Tries each URL in [urls] in order, returning after the first successful
-  /// download. If every source fails, rethrows the last error so the caller can
-  /// surface it. A cancellation is not retried — it propagates immediately.
-  Future<void> _downloadWithFallback(
-    List<String> urls,
-    File target, {
-    void Function(String message)? onStatus,
-    void Function(double? fraction)? onProgress,
-    bool Function()? isCancelled,
-  }) async {
-    Object? lastError;
-    for (var i = 0; i < urls.length; i++) {
-      try {
-        await _download(
-          urls[i],
-          target,
-          onProgress: onProgress,
-          isCancelled: isCancelled,
-        );
-        return;
-      } on ModelDownloadCancelled {
-        rethrow;
-      } catch (e) {
-        lastError = e;
-        final hasNext = i + 1 < urls.length;
-        if (hasNext) {
-          onStatus?.call('Source unavailable — trying another source…');
-          onProgress?.call(null);
-        }
-      }
-    }
-    throw Exception('All download sources failed. Last error: $lastError');
-  }
-
-  /// Streams [url] into `<target>.part`, resuming from any bytes already there
-  /// via a `Range` request, then renames it to [target] once complete.
-  Future<void> _download(
-    String url,
-    File target, {
-    void Function(double? fraction)? onProgress,
-    bool Function()? isCancelled,
-  }) async {
-    final partFile = File('${target.path}.part');
-    var existing = partFile.existsSync() ? partFile.lengthSync() : 0;
-
-    final client = http.Client();
-    try {
-      final request = http.Request('GET', Uri.parse(url));
-      if (existing > 0) {
-        request.headers['Range'] = 'bytes=$existing-';
-      }
-      final response = await client.send(request);
-
-      // A server that ignores Range replies 200 and resends from the start.
-      final resuming = response.statusCode == 206;
-      if (!resuming) {
-        existing = 0;
-        if (partFile.existsSync()) {
-          await partFile.delete();
-        }
-      }
-      if (response.statusCode != 200 && response.statusCode != 206) {
-        throw Exception(
-          'Download failed: HTTP ${response.statusCode} for $url',
-        );
-      }
-
-      final contentLength = response.contentLength;
-      final total = contentLength != null ? contentLength + existing : null;
-      var received = existing;
-      final sink = partFile.openWrite(
-        mode: resuming ? FileMode.append : FileMode.write,
-      );
-      try {
-        await for (final chunk in response.stream) {
-          if (isCancelled?.call() ?? false) {
-            throw const ModelDownloadCancelled();
-          }
-          sink.add(chunk);
-          received += chunk.length;
-          if (total != null && total > 0) {
-            onProgress?.call(received / total);
-          } else {
-            onProgress?.call(null);
-          }
-        }
-      } finally {
-        await sink.close();
-      }
-    } finally {
-      client.close();
-    }
-
-    await partFile.rename(target.path);
-  }
-}
-
-/// Decompresses [archivePath] (`.tar.bz2`) and extracts it into [destPath].
-///
-/// Runs inside an isolate (see [ModelManager._extractTarBz2]). To keep peak
-/// **disk** usage low on nearly-full devices, the bz2 is decompressed into
-/// memory and the compressed archive is deleted before any files are written,
-/// so the disk only ever holds the final extracted payload (never the archive
-/// and an intermediate `.tar` at the same time). The uncompressed bytes live in
-/// RAM briefly, which modern phones handle comfortably.
-///
-/// `extractFileToDisk` is deliberately avoided: it relies on the platform temp
-/// directory (Android's `code_cache`) and was observed to fail there with a
-/// missing-temp-file error.
-void _extractTarBz2Sync(String archivePath, String destPath) {
-  final archiveFile = File(archivePath);
-
-  // bz2 -> tar bytes in memory.
-  final compressed = archiveFile.readAsBytesSync();
-  final tarBytes = BZip2Decoder().decodeBytes(compressed);
-
-  // Free the compressed archive from disk before writing the payload.
-  if (archiveFile.existsSync()) {
-    archiveFile.deleteSync();
-  }
-
-  final archive = TarDecoder().decodeBytes(tarBytes);
-  for (final entry in archive) {
-    final outPath = '$destPath/${entry.name}';
-    if (entry.isFile) {
-      final out = OutputFileStream(outPath);
-      try {
-        entry.writeContent(out);
-      } finally {
-        out.closeSync();
-      }
-    } else {
-      Directory(outPath).createSync(recursive: true);
-    }
-  }
 }

@@ -12,7 +12,7 @@ part 'app_database.g.dart';
 /// not in SQLite.
 abstract final class Db {
   static const String fileName = 'guten_speak.db';
-  static const int version = 5;
+  static const int version = 6;
 
   // catalog (local search index of pg_catalog.csv) ---------------------
   static const String catalog = 'catalog';
@@ -50,6 +50,7 @@ abstract final class Db {
   static const String synthBookId = 'book_id';
   static const String synthVoiceId = 'voice_id';
   static const String synthUnitIndex = 'unit_index';
+  static const String synthProfileId = 'synthesis_profile_id';
   static const String synthUnitHash = 'unit_hash';
   static const String synthFile = 'file';
   static const String synthBytes = 'bytes';
@@ -79,16 +80,28 @@ Future<Database> appDatabase(Ref ref) async {
   final databasesPath = await getDatabasesPath();
   final path = p.join(databasesPath, Db.fileName);
 
-  final database = await openDatabase(
-    path,
-    version: Db.version,
-    onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
-    onCreate: _onCreate,
-    onUpgrade: _onUpgrade,
-  );
+  final database = await openAppDatabase(databaseFactory, path);
 
   ref.onDispose(database.close);
   return database;
+}
+
+/// Opens the metadata database with [factory] at [path], applying the shared
+/// schema config, creation, and migration callbacks.
+///
+/// Extracted from [appDatabase] so host tests can exercise the exact same
+/// `onCreate`/`onUpgrade` path against an ffi-backed database (see the
+/// migration tests) instead of the device's default sqflite factory.
+Future<Database> openAppDatabase(DatabaseFactory factory, String path) {
+  return factory.openDatabase(
+    path,
+    options: OpenDatabaseOptions(
+      version: Db.version,
+      onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    ),
+  );
 }
 
 Future<void> _onCreate(Database db, int version) async {
@@ -132,6 +145,9 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 5) {
     await _createBookmarksTable(db);
   }
+  if (oldVersion < 6) {
+    await _migrateSynthCacheToV6(db);
+  }
 }
 
 /// Creates the local catalog search table and its metadata table. Uses a plain
@@ -170,13 +186,28 @@ Future<void> _createSynthCacheTable(Database db) async {
         REFERENCES ${Db.books} (${Db.bookId}) ON DELETE CASCADE,
       ${Db.synthVoiceId} TEXT NOT NULL,
       ${Db.synthUnitIndex} INTEGER NOT NULL,
+      ${Db.synthProfileId} TEXT NOT NULL,
       ${Db.synthUnitHash} TEXT NOT NULL,
       ${Db.synthFile} TEXT NOT NULL,
       ${Db.synthBytes} INTEGER NOT NULL,
       ${Db.synthCreatedAt} INTEGER NOT NULL,
-      PRIMARY KEY (${Db.synthBookId}, ${Db.synthVoiceId}, ${Db.synthUnitIndex})
+      PRIMARY KEY (
+        ${Db.synthBookId}, ${Db.synthVoiceId},
+        ${Db.synthUnitIndex}, ${Db.synthProfileId}
+      )
     )
   ''');
+}
+
+/// Migrates the `synth_cache` table from the v5 schema (keyed by
+/// `(book_id, voice_id, unit_index)`) to the v6 profile-aware schema (which
+/// adds `synthesis_profile_id` to the primary key). SQLite cannot alter a
+/// primary key in place, and there is no shipped release whose cached audio
+/// needs preserving, so the table is simply dropped and recreated. Any audio
+/// rendered before v6 is re-synthesized on demand under its profile.
+Future<void> _migrateSynthCacheToV6(Database db) async {
+  await db.execute('DROP TABLE IF EXISTS ${Db.synthCache}');
+  await _createSynthCacheTable(db);
 }
 
 /// Creates the narration resume table: one row per book holding the last

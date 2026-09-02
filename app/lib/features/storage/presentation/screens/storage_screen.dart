@@ -46,24 +46,28 @@ class _StorageBody extends ConsumerWidget {
       children: [
         _SectionHeader('Total • ${formatBytes(usage.totalBytes)}'),
 
-        const _SectionHeader('TTS model'),
-        ListTile(
-          leading: const Icon(Icons.graphic_eq_outlined),
-          title: const Text('Neural voice model'),
-          subtitle: Text(
-            usage.modelInstalled
-                ? 'Installed • ${formatBytes(usage.modelBytes)}'
-                : 'Not installed',
-          ),
-          trailing: usage.modelInstalled
-              ? IconButton(
+        const _SectionHeader('TTS models'),
+        if (!usage.anyModelInstalled)
+          const ListTile(
+            leading: Icon(Icons.graphic_eq_outlined),
+            title: Text('Neural voice model'),
+            subtitle: Text('Not installed'),
+          )
+        else
+          for (final model in usage.models)
+            if (model.installed)
+              ListTile(
+                leading: const Icon(Icons.graphic_eq_outlined),
+                title: Text(model.label),
+                subtitle: Text('Installed • ${formatBytes(model.bytes)}'),
+                trailing: IconButton(
                   tooltip: 'Delete model',
                   icon: const Icon(Icons.delete_outline),
-                  onPressed: () =>
-                      unawaited(_confirmDeleteModel(context, controller)),
-                )
-              : null,
-        ),
+                  onPressed: () => unawaited(
+                    _confirmDeleteModel(context, controller, model),
+                  ),
+                ),
+              ),
 
         const Divider(),
         Row(
@@ -126,16 +130,18 @@ class _StorageBody extends ConsumerWidget {
   Future<void> _confirmDeleteModel(
     BuildContext context,
     StorageController controller,
+    ModelUsage model,
   ) async {
     final confirmed = await _confirm(
       context,
       title: 'Delete voice model?',
       message:
-          'The ~470 MB neural model will be removed. It downloads again '
-          'the next time you start narration.',
+          'The ${model.label} (${formatBytes(model.bytes)}) will be removed. '
+          'It downloads again the next time you start narration with that '
+          'engine.',
       confirmLabel: 'Delete',
     );
-    if (confirmed) await controller.deleteModel();
+    if (confirmed) await controller.deleteModel(model.id);
   }
 
   Future<void> _confirmClearAudio(

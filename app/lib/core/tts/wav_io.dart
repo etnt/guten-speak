@@ -184,6 +184,13 @@ Float32List conditionReference(Float32List samples) {
 String _tag(Uint8List bytes, int offset) =>
     String.fromCharCodes(bytes.sublist(offset, offset + 4));
 
+/// Version of the audio trim/fade/WAV-encoding policy.
+///
+/// Bump on any behavioral change to [trimAndFadeClip] or the WAV encoding, so a
+/// clip produced under the old policy is keyed separately in the synthesis
+/// profile and never reused across a change.
+const int kTtsAudioPolicyVersion = 1;
+
 /// Cleans up a freshly generated narration clip so back-to-back units join
 /// without an audible click or breath "cough" at the seam.
 ///
@@ -233,3 +240,67 @@ Float32List trimAndFadeClip(Float32List samples, int sampleRate) {
   }
   return trimmed;
 }
+
+/// Encodes mono float samples as a 16-bit PCM WAV byte buffer.
+///
+/// Engine-agnostic writer used by backends that don't bundle their own WAV
+/// encoder (e.g. the Raven FFI engine). Samples are clamped to [-1, 1] and
+/// rounded to signed 16-bit little-endian, matching the sherpa writer's format
+/// so downstream playback and cache validation are identical across engines.
+Uint8List encodeWavPcm16(Float32List samples, int sampleRate) {
+  const int channels = 1;
+  const int bitsPerSample = 16;
+  const int blockAlign = channels * bitsPerSample ~/ 8;
+  final int byteRate = sampleRate * blockAlign;
+  final int dataSize = samples.length * blockAlign;
+  final int riffSize = 36 + dataSize;
+
+  final bytes = Uint8List(44 + dataSize);
+  final data = ByteData.sublistView(bytes);
+
+  void writeTag(int offset, String tag) {
+    for (var i = 0; i < 4; i++) {
+      bytes[offset + i] = tag.codeUnitAt(i);
+    }
+  }
+
+  writeTag(0, 'RIFF');
+  data.setUint32(4, riffSize, Endian.little);
+  writeTag(8, 'WAVE');
+  writeTag(12, 'fmt ');
+  data.setUint32(16, 16, Endian.little); // fmt chunk size
+  data.setUint16(20, 1, Endian.little); // PCM
+  data.setUint16(22, channels, Endian.little);
+  data.setUint32(24, sampleRate, Endian.little);
+  data.setUint32(28, byteRate, Endian.little);
+  data.setUint16(32, blockAlign, Endian.little);
+  data.setUint16(34, bitsPerSample, Endian.little);
+  writeTag(36, 'data');
+  data.setUint32(40, dataSize, Endian.little);
+
+  var offset = 44;
+  for (final s in samples) {
+    var v = s;
+    if (v > 1.0) {
+      v = 1.0;
+    } else if (v < -1.0) {
+      v = -1.0;
+    }
+    final int i16 = (v * 32767.0).round();
+    data.setInt16(offset, i16, Endian.little);
+    offset += 2;
+  }
+  return bytes;
+}
+
+/// Atomically writes mono float samples to [path] as a 16-bit PCM WAV.
+///
+/// Writes to a sibling `.part` file and renames on success so a crashed or
+/// cancelled synthesis never leaves a truncated, cacheable final file.
+void writeWavPcm16Atomic(String path, Float32List samples, int sampleRate) {
+  final bytes = encodeWavPcm16(samples, sampleRate);
+  final tmp = File('$path.part');
+  tmp.writeAsBytesSync(bytes, flush: true);
+  tmp.renameSync(path);
+}
+

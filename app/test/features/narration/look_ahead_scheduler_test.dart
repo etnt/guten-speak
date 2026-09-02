@@ -16,15 +16,25 @@ class _FakeCache implements NarrationAudioCache {
   Future<String?> cachedPath(
     int bookId,
     String voiceId,
+    String synthesisProfileId,
     NarrationUnit unit,
   ) async => rendered.contains(unit.index) ? 'unit_${unit.index}.wav' : null;
 
   @override
-  Future<String> reservePath(int bookId, String voiceId, int unitIndex) async =>
-      'unit_$unitIndex.wav';
+  Future<String> reservePath(
+    int bookId,
+    String voiceId,
+    String synthesisProfileId,
+    int unitIndex,
+  ) async => 'unit_$unitIndex.wav';
 
   @override
-  Future<void> record(int bookId, String voiceId, NarrationUnit unit) async {
+  Future<void> record(
+    int bookId,
+    String voiceId,
+    String synthesisProfileId,
+    NarrationUnit unit,
+  ) async {
     rendered.add(unit.index);
     recorded.add(unit.index);
   }
@@ -32,7 +42,8 @@ class _FakeCache implements NarrationAudioCache {
   @override
   Future<void> evictOutsideWindow(
     int bookId,
-    String voiceId, {
+    String voiceId,
+    String synthesisProfileId, {
     required int lo,
     required int hi,
   }) async {
@@ -54,6 +65,7 @@ void main() {
       final scheduler = LookAheadScheduler(
         bookId: 1,
         voiceId: 'v',
+        synthesisProfileId: 'p',
         units: _makeUnits(10),
         cache: cache,
         synthesize: (unit, path) async => synthCalls.add(unit.index),
@@ -75,6 +87,7 @@ void main() {
       final scheduler = LookAheadScheduler(
         bookId: 1,
         voiceId: 'v',
+        synthesisProfileId: 'p',
         units: _makeUnits(10),
         cache: cache,
         synthesize: (unit, path) async => synthCalls.add(unit.index),
@@ -94,6 +107,7 @@ void main() {
       final scheduler = LookAheadScheduler(
         bookId: 1,
         voiceId: 'v',
+        synthesisProfileId: 'p',
         units: _makeUnits(10),
         cache: cache,
         synthesize: (unit, path) async => synthCalls.add(unit.index),
@@ -118,6 +132,7 @@ void main() {
       final scheduler = LookAheadScheduler(
         bookId: 1,
         voiceId: 'v',
+        synthesisProfileId: 'p',
         units: _makeUnits(10),
         cache: cache,
         synthesize: (unit, path) async {},
@@ -141,6 +156,7 @@ void main() {
       final scheduler = LookAheadScheduler(
         bookId: 1,
         voiceId: 'v',
+        synthesisProfileId: 'p',
         units: _makeUnits(10),
         cache: cache,
         synthesize: (unit, path) async {
@@ -169,6 +185,7 @@ void main() {
       final scheduler = LookAheadScheduler(
         bookId: 1,
         voiceId: 'v',
+        synthesisProfileId: 'p',
         units: _makeUnits(20),
         cache: cache,
         synthesize: (unit, path) async {},

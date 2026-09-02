@@ -5,7 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
-import '../../../../core/tts/tts_service.dart';
+import '../../../../core/tts/tts_synthesis_result.dart';
 import '../../../../core/utils/narration_segmenter.dart';
 import '../../data/datasources/narration_progress_data_source.dart';
 import '../../data/repositories/synth_cache.dart';
@@ -16,11 +16,17 @@ import '../../domain/services/look_ahead_scheduler.dart';
 /// Renders one narration unit to a WAV file in the selected voice. Matches the
 /// shape of `NarrationEngine.synthesize` so it can be injected as a tear-off.
 typedef SynthesizeToFile =
-    Future<SpeakResult> Function({
+    Future<TtsSynthesisResult> Function({
       required String text,
+      required String voiceId,
       required String referenceWavPath,
       required String outputWavPath,
     });
+
+/// Reads the active engine's synthesis profile id at load time. Injected (as a
+/// tear-off of `NarrationEngine.synthesisProfileId`) so the handler always keys
+/// the cache under the exact engine/settings it will synthesize with.
+typedef ProfileIdProvider = String Function();
 
 /// The background narration player.
 ///
@@ -39,6 +45,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
     required this._cache,
     required this._progress,
     required this._synthesize,
+    required this._profileId,
   }) {
     _processingSub = _player.processingStateStream.listen((processing) {
       if (processing == ProcessingState.completed) {
@@ -50,6 +57,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
   final SynthCache _cache;
   final NarrationProgressDataSource _progress;
   final SynthesizeToFile _synthesize;
+  final ProfileIdProvider _profileId;
 
   /// How many units to pre-render as a "head start" before playback begins (and
   /// the lead the scheduler then keeps ahead of the play head). On-device
@@ -72,6 +80,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
   String? _voiceId;
   String _voiceName = '';
   String? _voiceWav;
+  String? _synthesisProfileId;
   int _index = 0;
   bool _playIntent = false;
 
@@ -108,7 +117,11 @@ class NarrationAudioHandler extends BaseAudioHandler {
     bool autoplay = true,
     int? startUnit,
   }) async {
-    if (_bookId == bookId && _voiceId == voiceId && _scheduler != null) {
+    final synthesisProfileId = _profileId();
+    if (_bookId == bookId &&
+        _voiceId == voiceId &&
+        _synthesisProfileId == synthesisProfileId &&
+        _scheduler != null) {
       // Same session already loaded — just seek/(re)start playback.
       if (startUnit != null) await seekToUnit(startUnit);
       _playIntent = autoplay;
@@ -125,6 +138,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
     _voiceId = voiceId;
     _voiceName = voiceName;
     _voiceWav = voiceWavPath;
+    _synthesisProfileId = synthesisProfileId;
     _units = units;
     _playIntent = autoplay;
     _index = 0;
@@ -152,6 +166,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
     final scheduler = LookAheadScheduler(
       bookId: bookId,
       voiceId: voiceId,
+      synthesisProfileId: synthesisProfileId,
       units: units,
       cache: _cache,
       synthesize: _synthUnit,
@@ -266,13 +281,17 @@ class NarrationAudioHandler extends BaseAudioHandler {
 
   Future<void> _synthUnit(NarrationUnit unit, String outputPath) async {
     final wav = _voiceWav;
-    if (wav == null) throw StateError('No voice loaded for narration.');
+    final voiceId = _voiceId;
+    if (wav == null || voiceId == null) {
+      throw StateError('No voice loaded for narration.');
+    }
     final result = await _synthesize(
       text: unit.text,
+      voiceId: voiceId,
       referenceWavPath: wav,
       outputWavPath: outputPath,
     );
-    _genMsSum += result.generateMillis;
+    _genMsSum += result.requestToCompleteMillis;
     _genCount++;
   }
 
@@ -326,14 +345,20 @@ class NarrationAudioHandler extends BaseAudioHandler {
   }) async {
     final bookId = _bookId;
     final voiceId = _voiceId;
-    if (bookId == null || voiceId == null || _units.isEmpty) return;
+    final profileId = _synthesisProfileId;
+    if (bookId == null ||
+        voiceId == null ||
+        profileId == null ||
+        _units.isEmpty) {
+      return;
+    }
     if (_index >= _units.length) {
       await _complete();
       return;
     }
 
     final unit = _units[_index];
-    final path = await _cache.cachedPath(bookId, voiceId, unit);
+    final path = await _cache.cachedPath(bookId, voiceId, profileId, unit);
     debugPrint(
       'GS_NARR _playCurrent idx=$_index path=${path != null} '
       'rebuild=$rebuildLeadIfMissing playIntent=$_playIntent '

@@ -5,27 +5,46 @@ import 'dart:typed_data';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
 
 import 'model_manager.dart';
+import 'tts_text_processing.dart';
 import 'wav_io.dart';
 
-/// Result of a single clone + synthesize call.
+/// Result of a single clone + synthesize call, with per-stage timings so the
+/// engine adapter can report both a native-compute and a complete-pipeline
+/// real-time factor.
 class SpeakResult {
   const SpeakResult({
     required this.sampleRate,
-    required this.audioSeconds,
-    required this.generateMillis,
+    required this.sampleCount,
+    required this.nativeGenerateMillis,
+    required this.postProcessMillis,
+    required this.wavWriteMillis,
+    required this.completeMillis,
   });
 
   final int sampleRate;
 
+  /// Number of PCM samples written.
+  final int sampleCount;
+
+  /// Wall-clock time spent inside `generateWithConfig` (native generation).
+  final int nativeGenerateMillis;
+
+  /// Time spent trimming/fading and joining retry phrases.
+  final int postProcessMillis;
+
+  /// Time spent encoding and writing the WAV.
+  final int wavWriteMillis;
+
+  /// End-to-end time inside the worker, from request to written file.
+  final int completeMillis;
+
   /// Duration of the generated audio in seconds.
-  final double audioSeconds;
+  double get audioSeconds =>
+      sampleRate > 0 ? sampleCount / sampleRate : 0.0;
 
-  /// Wall-clock time spent inside `generateWithConfig`, in milliseconds.
-  final int generateMillis;
-
-  /// Real-time factor: < 1.0 means faster than real time.
+  /// Native-compute real-time factor: < 1.0 means faster than real time.
   double get realTimeFactor =>
-      audioSeconds > 0 ? (generateMillis / 1000.0) / audioSeconds : 0;
+      audioSeconds > 0 ? (nativeGenerateMillis / 1000.0) / audioSeconds : 0;
 }
 
 /// Thin wrapper around sherpa-onnx PocketTTS zero-shot voice cloning.
@@ -120,8 +139,11 @@ class TtsService {
     }
     return SpeakResult(
       sampleRate: res['sampleRate'] as int,
-      audioSeconds: res['audioSeconds'] as double,
-      generateMillis: res['generateMillis'] as int,
+      sampleCount: res['sampleCount'] as int,
+      nativeGenerateMillis: res['nativeGenerateMillis'] as int,
+      postProcessMillis: res['postProcessMillis'] as int,
+      wavWriteMillis: res['wavWriteMillis'] as int,
+      completeMillis: res['completeMillis'] as int,
     );
   }
 
@@ -212,6 +234,7 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
           if (engine == null) {
             throw StateError('init must run before speak');
           }
+          final complete = Stopwatch()..start();
           final wave = readWavAsFloat32(map['ref'] as String, normalize: true);
           final numSteps = map['numSteps'] as int;
           final temperature = map['temperature'] as double;
@@ -219,28 +242,27 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
           // Quote glyphs are visual punctuation, not speech. PocketTTS can
           // miss its stop token on a trailing smart quote (for example `.”`),
           // producing the grinding tail this retry loop is meant to reject.
-          final text = (map['text'] as String)
-              .replaceAll('"', '')
-              .replaceAll('\u201C', '')
-              .replaceAll('\u201D', '')
-              .replaceAll('\u201E', '')
-              .replaceAll('\u201F', '')
-              .replaceAll('\u2018', "'")
-              .replaceAll('\u2019', "'");
+          // This normalization is shared with every engine and versioned in the
+          // synthesis profile (see tts_text_processing.dart).
+          final text = normalizeTtsText(map['text'] as String);
           var sampleRate = 0;
+
+          // Per-stage timers: native generation vs. audio post-processing vs.
+          // the WAV write, so the engine can report native and pipeline RTF.
+          final nativeGen = Stopwatch();
+          final post = Stopwatch();
 
           // PocketTTS occasionally misses its stop token and appends a long
           // grinding/noise tail. Never truncate and cache that bad attempt.
           // Validate the full utterance first; if it runs away, split it at
           // natural clause boundaries and synthesize independently validated
           // shorter clips instead.
-          final stopwatch = Stopwatch()..start();
           Float32List? generatePlausible(
             String phrase, {
             required int seedOffset,
             required int attempts,
           }) {
-            final plausibleSeconds = phrase.length / 10.0 + 4.0;
+            final plausibleSeconds = plausibleAudioSeconds(phrase);
             for (var attempt = 0; attempt < attempts; attempt++) {
               final genConfig = sherpa_onnx.OfflineTtsGenerationConfig(
                 numSteps: numSteps,
@@ -256,10 +278,12 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
                   'max_frames': 160,
                 },
               );
+              nativeGen.start();
               final audio = engine.generateWithConfig(
                 text: phrase,
                 config: genConfig,
               );
+              nativeGen.stop();
               sampleRate = audio.sampleRate;
               final maxSamples = (plausibleSeconds * sampleRate).round();
               if (sampleRate > 0 && audio.samples.length <= maxSamples) {
@@ -272,7 +296,7 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
           var generated = generatePlausible(text, seedOffset: 0, attempts: 1);
           if (generated == null) {
             final parts = <Float32List>[];
-            final phrases = _splitTtsRetryPhrases(text);
+            final phrases = splitTtsRetryPhrases(text);
             for (var i = 0; i < phrases.length; i++) {
               final part = generatePlausible(
                 phrases[i],
@@ -285,29 +309,38 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
                   'phrase.',
                 );
               }
+              post.start();
               parts.add(trimAndFadeClip(part, sampleRate));
+              post.stop();
             }
+            post.start();
             generated = _joinTtsPhrases(parts, sampleRate);
+            post.stop();
           }
-          stopwatch.stop();
 
           // Trim edge silence and fade the clip so consecutive units don't
           // click ("cough") at the seam when played back-to-back.
+          post.start();
           final samples = trimAndFadeClip(generated, sampleRate);
+          post.stop();
 
+          final write = Stopwatch()..start();
           sherpa_onnx.writeWave(
             filename: map['out'] as String,
             samples: samples,
             sampleRate: sampleRate,
           );
-
-          final seconds = sampleRate > 0 ? samples.length / sampleRate : 0.0;
+          write.stop();
+          complete.stop();
 
           toMain.send(<String, dynamic>{
             'id': id,
             'sampleRate': sampleRate,
-            'audioSeconds': seconds,
-            'generateMillis': stopwatch.elapsedMilliseconds,
+            'sampleCount': samples.length,
+            'nativeGenerateMillis': nativeGen.elapsedMilliseconds,
+            'postProcessMillis': post.elapsedMilliseconds,
+            'wavWriteMillis': write.elapsedMilliseconds,
+            'completeMillis': complete.elapsedMilliseconds,
           });
           break;
 
@@ -328,30 +361,6 @@ Future<void> _ttsWorkerMain(SendPort toMain) async {
       toMain.send(<String, dynamic>{'id': id, 'error': e.toString()});
     }
   }
-}
-
-/// Splits a rejected utterance into shorter retry phrases, preferring clause
-/// punctuation and then whitespace so the fallback keeps natural prosody.
-List<String> _splitTtsRetryPhrases(String text, {int maxChars = 80}) {
-  final phrases = <String>[];
-  var remaining = text.trim();
-  while (remaining.length > maxChars) {
-    var cut = -1;
-    for (var i = maxChars; i >= maxChars ~/ 2; i--) {
-      if (',;:'.contains(remaining[i])) {
-        cut = i + 1;
-        break;
-      }
-    }
-    if (cut < 0) {
-      cut = remaining.lastIndexOf(' ', maxChars);
-    }
-    if (cut <= 0) cut = maxChars;
-    phrases.add(remaining.substring(0, cut).trim());
-    remaining = remaining.substring(cut).trim();
-  }
-  if (remaining.isNotEmpty) phrases.add(remaining);
-  return phrases;
 }
 
 /// Joins independently faded retry phrases with a short natural pause.

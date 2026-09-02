@@ -45,6 +45,7 @@ class LookAheadScheduler {
   LookAheadScheduler({
     required this.bookId,
     required this.voiceId,
+    required this.synthesisProfileId,
     required this.units,
     required this.cache,
     required this.synthesize,
@@ -54,6 +55,12 @@ class LookAheadScheduler {
 
   final int bookId;
   final String voiceId;
+
+  /// The synthesis profile (engine + settings + model) this scheduler renders
+  /// under. Threaded into every cache call so clips are keyed per profile and
+  /// engines never reuse each other's audio.
+  final String synthesisProfileId;
+
   final List<NarrationUnit> units;
   final NarrationAudioCache cache;
   final SynthesizeUnit synthesize;
@@ -114,10 +121,15 @@ class LookAheadScheduler {
         final target = await _nextTarget();
         if (target == null || _disposed) break;
         try {
-          final outputPath = await cache.reservePath(bookId, voiceId, target);
+          final outputPath = await cache.reservePath(
+            bookId,
+            voiceId,
+            synthesisProfileId,
+            target,
+          );
           await synthesize(units[target], outputPath);
           if (_disposed) break;
-          await cache.record(bookId, voiceId, units[target]);
+          await cache.record(bookId, voiceId, synthesisProfileId, units[target]);
           _markReady(target);
         } catch (error) {
           _emit(SynthEvent(SynthEventKind.failed, target, error));
@@ -137,7 +149,12 @@ class LookAheadScheduler {
     final hi = math.min(units.length - 1, _playHead + lookAhead);
     for (var i = _playHead; i <= hi; i++) {
       if (_ready.contains(i)) continue;
-      final cached = await cache.cachedPath(bookId, voiceId, units[i]);
+      final cached = await cache.cachedPath(
+        bookId,
+        voiceId,
+        synthesisProfileId,
+        units[i],
+      );
       if (cached != null) {
         _markReady(i);
         continue;
@@ -151,7 +168,13 @@ class LookAheadScheduler {
     final lo = math.max(0, _playHead - behind);
     final hi = math.min(units.length - 1, _playHead + lookAhead);
     _ready.removeWhere((i) => i < lo || i > hi);
-    await cache.evictOutsideWindow(bookId, voiceId, lo: lo, hi: hi);
+    await cache.evictOutsideWindow(
+      bookId,
+      voiceId,
+      synthesisProfileId,
+      lo: lo,
+      hi: hi,
+    );
   }
 
   void _markReady(int index) {

@@ -4,7 +4,7 @@ import '../../../../core/storage/app_database.dart';
 import '../../domain/entities/synth_cache_entry.dart';
 
 /// sqflite CRUD over the `synth_cache` index table. One row per rendered
-/// narration unit `(book_id, voice_id, unit_index)`.
+/// narration unit `(book_id, voice_id, unit_index, synthesis_profile_id)`.
 class SynthCacheDataSource {
   const SynthCacheDataSource(this._db);
 
@@ -14,13 +14,14 @@ class SynthCacheDataSource {
     int bookId,
     String voiceId,
     int unitIndex,
+    String synthesisProfileId,
   ) async {
     final rows = await _db.query(
       Db.synthCache,
       where:
           '${Db.synthBookId} = ? AND ${Db.synthVoiceId} = ? '
-          'AND ${Db.synthUnitIndex} = ?',
-      whereArgs: <Object?>[bookId, voiceId, unitIndex],
+          'AND ${Db.synthUnitIndex} = ? AND ${Db.synthProfileId} = ?',
+      whereArgs: <Object?>[bookId, voiceId, unitIndex, synthesisProfileId],
       limit: 1,
     );
     return rows.isEmpty ? null : _fromRow(rows.first);
@@ -31,6 +32,7 @@ class SynthCacheDataSource {
       Db.synthBookId: entry.bookId,
       Db.synthVoiceId: entry.voiceId,
       Db.synthUnitIndex: entry.unitIndex,
+      Db.synthProfileId: entry.synthesisProfileId,
       Db.synthUnitHash: entry.unitHash,
       Db.synthFile: entry.file,
       Db.synthBytes: entry.bytes,
@@ -38,20 +40,27 @@ class SynthCacheDataSource {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<void> delete(int bookId, String voiceId, int unitIndex) async {
+  Future<void> delete(
+    int bookId,
+    String voiceId,
+    int unitIndex,
+    String synthesisProfileId,
+  ) async {
     await _db.delete(
       Db.synthCache,
       where:
           '${Db.synthBookId} = ? AND ${Db.synthVoiceId} = ? '
-          'AND ${Db.synthUnitIndex} = ?',
-      whereArgs: <Object?>[bookId, voiceId, unitIndex],
+          'AND ${Db.synthUnitIndex} = ? AND ${Db.synthProfileId} = ?',
+      whereArgs: <Object?>[bookId, voiceId, unitIndex, synthesisProfileId],
     );
   }
 
-  /// Unit indices cached for `(bookId, voiceId)` that fall outside `[lo, hi]`.
+  /// Unit indices cached for `(bookId, voiceId, synthesisProfileId)` that fall
+  /// outside `[lo, hi]`.
   Future<List<int>> indicesOutside(
     int bookId,
     String voiceId,
+    String synthesisProfileId,
     int lo,
     int hi,
   ) async {
@@ -60,19 +69,27 @@ class SynthCacheDataSource {
       columns: <String>[Db.synthUnitIndex],
       where:
           '${Db.synthBookId} = ? AND ${Db.synthVoiceId} = ? '
+          'AND ${Db.synthProfileId} = ? '
           'AND (${Db.synthUnitIndex} < ? OR ${Db.synthUnitIndex} > ?)',
-      whereArgs: <Object?>[bookId, voiceId, lo, hi],
+      whereArgs: <Object?>[bookId, voiceId, synthesisProfileId, lo, hi],
     );
     return rows.map((row) => row[Db.synthUnitIndex]! as int).toList();
   }
 
-  Future<void> deleteOutside(int bookId, String voiceId, int lo, int hi) async {
+  Future<void> deleteOutside(
+    int bookId,
+    String voiceId,
+    String synthesisProfileId,
+    int lo,
+    int hi,
+  ) async {
     await _db.delete(
       Db.synthCache,
       where:
           '${Db.synthBookId} = ? AND ${Db.synthVoiceId} = ? '
+          'AND ${Db.synthProfileId} = ? '
           'AND (${Db.synthUnitIndex} < ? OR ${Db.synthUnitIndex} > ?)',
-      whereArgs: <Object?>[bookId, voiceId, lo, hi],
+      whereArgs: <Object?>[bookId, voiceId, synthesisProfileId, lo, hi],
     );
   }
 
@@ -84,8 +101,8 @@ class SynthCacheDataSource {
     );
   }
 
-  /// All cached file paths for a voice across every book (for voice-level
-  /// invalidation, e.g. when a voice is deleted from the library).
+  /// All cached file paths for a voice across every book and profile (for
+  /// voice-level invalidation, e.g. when a voice is deleted from the library).
   Future<List<String>> filesForVoice(String voiceId) async {
     final rows = await _db.query(
       Db.synthCache,
@@ -114,6 +131,7 @@ class SynthCacheDataSource {
       bookId: row[Db.synthBookId]! as int,
       voiceId: row[Db.synthVoiceId]! as String,
       unitIndex: row[Db.synthUnitIndex]! as int,
+      synthesisProfileId: row[Db.synthProfileId]! as String,
       unitHash: row[Db.synthUnitHash]! as String,
       file: row[Db.synthFile]! as String,
       bytes: row[Db.synthBytes]! as int,
