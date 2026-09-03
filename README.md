@@ -25,7 +25,7 @@ synthesized), reading _and_ listening work with no network.
   
 **Free and open-source.** Cloned voices stay local to your device.
 
-> **Note:** Voice narration is still somewhat experimental
+**guten-speak** has been verified to work on: `Pixel 10 Pro`, `Pixel 7 Pro`, `Samsung Galaxy S8`.
 
 ---
 
