@@ -258,7 +258,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (milestone == null) return;
     final direction = Directionality.maybeOf(context);
     if (direction == null) return;
-    SemanticsService.announce('Reading progress $percentage percent', direction);
+    SemanticsService.announce('Reading progress $milestone percent', direction);
     _announcementState.markMilestoneAnnounced(milestone);
   }
 
