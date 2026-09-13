@@ -140,6 +140,46 @@ void main() {
     });
   });
 
+  group('ReadingProgressAnnouncer', () {
+    test('announces only when entering a new milestone', () {
+      final messages = <String>[];
+      final announcer = ReadingProgressAnnouncer(
+        announce: (message, _) => messages.add(message),
+      );
+
+      announcer.announceIfNeeded(
+        paragraphIndex: 9,
+        paragraphCount: 100,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 10,
+        paragraphCount: 100,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 11,
+        paragraphCount: 100,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 10,
+        paragraphCount: 100,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 20,
+        paragraphCount: 100,
+        textDirection: TextDirection.ltr,
+      );
+
+      expect(
+        messages,
+        <String>['Reading progress 10 percent', 'Reading progress 20 percent'],
+      );
+    });
+  });
+
   group('firstReadableParagraphIndex', () {
     test('ignores trailing padding below a hidden paragraph', () {
       final positions = <ItemPosition>[

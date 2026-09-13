@@ -78,6 +78,37 @@ class ReadingProgressAnnouncementState {
   }
 }
 
+typedef ReadingProgressAnnounce = void Function(
+  String message,
+  TextDirection textDirection,
+);
+
+/// Announces reading milestones while suppressing duplicate announcements.
+class ReadingProgressAnnouncer {
+  ReadingProgressAnnouncer({ReadingProgressAnnounce? announce})
+    : _announce = announce ?? SemanticsService.announce;
+
+  final ReadingProgressAnnounce _announce;
+  final ReadingProgressAnnouncementState _state =
+      ReadingProgressAnnouncementState();
+
+  void announceIfNeeded({
+    required int paragraphIndex,
+    required int paragraphCount,
+    required TextDirection? textDirection,
+  }) {
+    if (paragraphCount <= 0 || textDirection == null) return;
+    final percentage = readingCompletionPercentage(
+      paragraphIndex: paragraphIndex,
+      paragraphCount: paragraphCount,
+    );
+    final milestone = _state.nextMilestoneToAnnounce(percentage);
+    if (milestone == null) return;
+    _announce('Reading progress $milestone percent', textDirection);
+    _state.markMilestoneAnnounced(milestone);
+  }
+}
+
 /// Top-bar text and semantics for current reading completion.
 class ReaderProgressLabel extends StatelessWidget {
   const ReaderProgressLabel({
@@ -192,8 +223,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // bottom-bar bookmark toggle) without rebuilding the whole reader.
   final ValueNotifier<int> _firstVisibleParagraph = ValueNotifier<int>(0);
   Timer? _saveDebounce;
-  final ReadingProgressAnnouncementState _announcementState =
-      ReadingProgressAnnouncementState();
+  final ReadingProgressAnnouncer _progressAnnouncer =
+      ReadingProgressAnnouncer();
 
   // Narration sync: units are segmented the same way the player does, so the
   // reader can map the current unit → paragraph (highlight/follow) and a tapped
@@ -250,16 +281,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void _announceProgressMilestoneIfNeeded() {
     final paragraphCount = _unitsSource?.length ?? 0;
     if (paragraphCount <= 0 || !mounted) return;
-    final percentage = readingCompletionPercentage(
+    _progressAnnouncer.announceIfNeeded(
       paragraphIndex: _firstVisible,
       paragraphCount: paragraphCount,
+      textDirection: Directionality.maybeOf(context),
     );
-    final milestone = _announcementState.nextMilestoneToAnnounce(percentage);
-    if (milestone == null) return;
-    final direction = Directionality.maybeOf(context);
-    if (direction == null) return;
-    SemanticsService.announce('Reading progress $milestone percent', direction);
-    _announcementState.markMilestoneAnnounced(milestone);
   }
 
   void _jumpToParagraph(int index) {
@@ -754,9 +780,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ValueListenableBuilder<int>(
                       valueListenable: _firstVisibleParagraph,
                       builder: (context, paragraph, _) {
+                        final paragraphCount =
+                            _unitsSource?.length ?? content.paragraphs.length;
                         return ReaderProgressLabel(
                           paragraphIndex: paragraph,
-                          paragraphCount: content.paragraphs.length,
+                          paragraphCount: paragraphCount,
                           color: palette.foreground,
                         );
                       },
