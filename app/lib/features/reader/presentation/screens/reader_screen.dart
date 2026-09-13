@@ -66,6 +66,7 @@ class ReaderProgressLabel extends StatelessWidget {
     return Semantics(
       label: 'Reading progress',
       value: '$percentage percent',
+      liveRegion: true,
       child: ExcludeSemantics(
         child: Text(
           '$percentage%',

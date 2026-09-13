@@ -85,7 +85,11 @@ void main() {
       final semantics = tester.getSemantics(find.byType(ReaderProgressLabel));
       expect(
         semantics,
-        matchesSemantics(label: 'Reading progress', value: '25 percent'),
+        matchesSemantics(
+          label: 'Reading progress',
+          value: '25 percent',
+          liveRegion: true,
+        ),
       );
     });
   });
