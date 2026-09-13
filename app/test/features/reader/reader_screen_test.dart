@@ -28,10 +28,10 @@ void main() {
       );
     });
 
-    test('shows 1% at the first paragraph and 100% at the last', () {
+    test('shows 0% at the first paragraph and 100% at the last', () {
       expect(
         readingCompletionPercentage(paragraphIndex: 0, paragraphCount: 100),
-        1,
+        0,
       );
       expect(
         readingCompletionPercentage(paragraphIndex: 99, paragraphCount: 100),
@@ -42,11 +42,22 @@ void main() {
     test('clamps out-of-range positions', () {
       expect(
         readingCompletionPercentage(paragraphIndex: -4, paragraphCount: 10),
-        1,
+        0,
       );
       expect(
         readingCompletionPercentage(paragraphIndex: 50, paragraphCount: 10),
         100,
+      );
+    });
+
+    test('rounds to nearest percentage point', () {
+      expect(
+        readingCompletionPercentage(paragraphIndex: 50, paragraphCount: 201),
+        25,
+      );
+      expect(
+        readingCompletionPercentage(paragraphIndex: 1, paragraphCount: 3),
+        50,
       );
     });
   });

@@ -39,8 +39,9 @@ int readingCompletionPercentage({
   required int paragraphCount,
 }) {
   if (paragraphCount <= 0) return 0;
+  if (paragraphCount == 1) return 100;
   final clampedIndex = paragraphIndex.clamp(0, paragraphCount - 1);
-  return (((clampedIndex + 1) / paragraphCount) * 100).floor().clamp(0, 100);
+  return ((clampedIndex / (paragraphCount - 1)) * 100).round().clamp(0, 100);
 }
 
 /// Top-bar text and semantics for current reading completion.
