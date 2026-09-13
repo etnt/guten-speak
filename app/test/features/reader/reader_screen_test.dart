@@ -105,7 +105,6 @@ void main() {
               paragraphIndex: 20,
               paragraphCount: 100,
               color: Colors.black,
-              liveRegion: true,
             ),
           ),
         ),
@@ -117,7 +116,6 @@ void main() {
         matchesSemantics(
           label: 'Reading progress',
           value: '20 percent',
-          liveRegion: true,
         ),
       );
     });
