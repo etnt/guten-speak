@@ -734,10 +734,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _restored = true;
     final index = progress?.paragraphIndex ?? 0;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _firstVisible = index;
-      _firstVisibleParagraph.value = index;
+      final paragraphCount = _unitsSource?.length ?? 0;
+      final maxIndex = paragraphCount > 0 ? paragraphCount - 1 : 0;
+      final clampedIndex = index.clamp(0, maxIndex) as int;
+      _firstVisible = clampedIndex;
+      _firstVisibleParagraph.value = clampedIndex;
       if (_itemScrollController.isAttached) {
-        _itemScrollController.jumpTo(index: index, alignment: _topBarAlignment);
+        _itemScrollController.jumpTo(
+          index: clampedIndex,
+          alignment: _topBarAlignment,
+        );
       }
       _announceProgressMilestoneIfNeeded();
     });
