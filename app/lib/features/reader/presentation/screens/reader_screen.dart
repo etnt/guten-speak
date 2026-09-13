@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -31,6 +32,131 @@ String compactReaderTitle(String title) {
   final characters = title.runes;
   if (characters.length <= limit) return title;
   return '${String.fromCharCodes(characters.take(limit))}…';
+}
+
+/// Converts a reader position into an integer completion percentage.
+int readingCompletionPercentage({
+  required int paragraphIndex,
+  required int paragraphCount,
+}) {
+  if (paragraphCount <= 0) return 0;
+  final clampedIndex = paragraphIndex.clamp(0, paragraphCount - 1);
+  return (((clampedIndex + 1) / paragraphCount) * 100).round().clamp(0, 100);
+}
+
+/// Returns the progress milestone to announce (10% steps and 100%), if any.
+int? progressAnnouncementMilestone(int percentage) {
+  if (percentage <= 0) return null;
+  if (percentage >= 100) return 100;
+  final bucket = (percentage ~/ 10) * 10;
+  return bucket == 0 ? null : bucket;
+}
+
+/// Whether [percentage] should trigger a live announcement.
+bool shouldAnnounceProgressMilestone({
+  required int percentage,
+  required int? lastAnnouncedMilestone,
+}) {
+  final milestone = progressAnnouncementMilestone(percentage);
+  return milestone != null && milestone != lastAnnouncedMilestone;
+}
+
+/// Tracks milestone announcements and deduplicates repeated announcements.
+class ReadingProgressAnnouncementState {
+  int? _lastAnnouncedMilestone;
+
+  int? nextMilestoneToAnnounce(int percentage) {
+    if (!shouldAnnounceProgressMilestone(
+      percentage: percentage,
+      lastAnnouncedMilestone: _lastAnnouncedMilestone,
+    )) {
+      return null;
+    }
+    return progressAnnouncementMilestone(percentage);
+  }
+
+  void markMilestoneAnnounced(int milestone) {
+    _lastAnnouncedMilestone = milestone;
+  }
+}
+
+typedef ReadingProgressAnnounce = void Function(
+  FlutterView view,
+  String message,
+  TextDirection textDirection,
+);
+
+/// Announces reading milestones while suppressing duplicate announcements.
+class ReadingProgressAnnouncer {
+  ReadingProgressAnnouncer({ReadingProgressAnnounce? announce})
+    : _announce = announce ?? SemanticsService.sendAnnouncement;
+
+  final ReadingProgressAnnounce _announce;
+  final ReadingProgressAnnouncementState _state =
+      ReadingProgressAnnouncementState();
+
+  void announceIfNeeded({
+    required int paragraphIndex,
+    required int paragraphCount,
+    required FlutterView? view,
+    required TextDirection? textDirection,
+  }) {
+    if (paragraphCount <= 0 || view == null || textDirection == null) return;
+    final percentage = readingCompletionPercentage(
+      paragraphIndex: paragraphIndex,
+      paragraphCount: paragraphCount,
+    );
+    final milestone = _state.nextMilestoneToAnnounce(percentage);
+    if (milestone == null) return;
+    _announce(view, 'Reading progress $milestone percent', textDirection);
+    _state.markMilestoneAnnounced(milestone);
+  }
+
+  void seedFromProgress({
+    required int paragraphIndex,
+    required int paragraphCount,
+  }) {
+    if (paragraphCount <= 0) return;
+    final percentage = readingCompletionPercentage(
+      paragraphIndex: paragraphIndex,
+      paragraphCount: paragraphCount,
+    );
+    final milestone = progressAnnouncementMilestone(percentage);
+    if (milestone == null) return;
+    _state.markMilestoneAnnounced(milestone);
+  }
+}
+
+/// Top-bar text and semantics for current reading completion.
+class ReaderProgressLabel extends StatelessWidget {
+  const ReaderProgressLabel({
+    required this.paragraphIndex,
+    required this.paragraphCount,
+    required this.color,
+    super.key,
+  });
+
+  final int paragraphIndex;
+  final int paragraphCount;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final percentage = readingCompletionPercentage(
+      paragraphIndex: paragraphIndex,
+      paragraphCount: paragraphCount,
+    );
+    return Semantics(
+      label: 'Reading progress',
+      value: '$percentage percent',
+      child: ExcludeSemantics(
+        child: Text(
+          '$percentage%',
+          style: TextStyle(color: color, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
 }
 
 /// Returns the first paragraph with content visible below the reader's
@@ -115,6 +241,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // bottom-bar bookmark toggle) without rebuilding the whole reader.
   final ValueNotifier<int> _firstVisibleParagraph = ValueNotifier<int>(0);
   Timer? _saveDebounce;
+  final ReadingProgressAnnouncer _progressAnnouncer =
+      ReadingProgressAnnouncer();
+  int _currentParagraphCount = 0;
 
   // Narration sync: units are segmented the same way the player does, so the
   // reader can map the current unit → paragraph (highlight/follow) and a tapped
@@ -125,6 +254,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   final Map<int, int> _paraToFirstUnit = <int, int>{};
   int? _lastFollowedParagraph;
   bool _narrationCommandRunning = false;
+  bool _skipNextProgressAnnouncement = false;
 
   @override
   void initState() {
@@ -148,6 +278,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (index != _firstVisible) {
       _firstVisible = index;
       _firstVisibleParagraph.value = index;
+      if (_skipNextProgressAnnouncement) {
+        _skipNextProgressAnnouncement = false;
+      } else {
+        _announceProgressMilestoneIfNeeded();
+      }
       _saveDebounce?.cancel();
       _saveDebounce = Timer(const Duration(seconds: 1), () {
         unawaited(
@@ -164,6 +299,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       topInsetFraction: _visibleTopAlignment,
       itemTrailingPaddingFraction: _paragraphTrailingPaddingAlignment,
       fallback: _firstVisible,
+    );
+  }
+
+  void _announceProgressMilestoneIfNeeded() {
+    final paragraphCount = _currentParagraphCount;
+    if (paragraphCount <= 0 || !mounted) return;
+    _progressAnnouncer.announceIfNeeded(
+      paragraphIndex: _firstVisible,
+      paragraphCount: paragraphCount,
+      view: View.maybeOf(context),
+      textDirection: Directionality.maybeOf(context),
     );
   }
 
@@ -282,6 +428,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (paragraph == null || paragraph == _lastFollowedParagraph) return;
     _lastFollowedParagraph = paragraph;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _skipNextProgressAnnouncement = true;
       _jumpToParagraph(paragraph);
     });
   }
@@ -524,6 +671,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _ReaderPalette palette,
     NarrationPlaybackState? playback,
   ) {
+    _currentParagraphCount = content.paragraphs.length;
     _maybeRestore();
     _unitsFor(content);
     _followNarration(playback);
@@ -609,14 +757,24 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final progress = progressAsync.valueOrNull;
     if (progressAsync.isLoading) return;
     _restored = true;
-    final index = progress?.paragraphIndex ?? 0;
-    if (index <= 0) return;
+    final index = progress?.paragraphIndex;
+    if (index == null || index <= 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _firstVisible = index;
-      _firstVisibleParagraph.value = index;
+      final paragraphCount = _currentParagraphCount;
+      final maxIndex = paragraphCount > 0 ? paragraphCount - 1 : 0;
+      final int clampedIndex = index.clamp(0, maxIndex);
+      _firstVisible = clampedIndex;
+      _firstVisibleParagraph.value = clampedIndex;
       if (_itemScrollController.isAttached) {
-        _itemScrollController.jumpTo(index: index, alignment: _topBarAlignment);
+        _itemScrollController.jumpTo(
+          index: clampedIndex,
+          alignment: _topBarAlignment,
+        );
       }
+      _progressAnnouncer.seedFromProgress(
+        paragraphIndex: clampedIndex,
+        paragraphCount: paragraphCount,
+      );
     });
   }
 
@@ -643,14 +801,30 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
               Expanded(
-                child: Text(
-                  compactReaderTitle(content.book.title),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.foreground,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      compactReaderTitle(content.book.title),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.foreground,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    ValueListenableBuilder<int>(
+                      valueListenable: _firstVisibleParagraph,
+                      builder: (context, paragraph, _) {
+                        return ReaderProgressLabel(
+                          paragraphIndex: paragraph,
+                          paragraphCount: _currentParagraphCount,
+                          color: palette.foreground,
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
               IconButton(

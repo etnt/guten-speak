@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guten_speak/features/reader/presentation/screens/reader_screen.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -16,6 +17,222 @@ void main() {
     test('does not split supplementary Unicode characters', () {
       final title = List.filled(16, '📚').join();
       expect(compactReaderTitle(title), '${List.filled(15, '📚').join()}…');
+    });
+  });
+
+  group('readingCompletionPercentage', () {
+    test('returns 0 when paragraph count is empty', () {
+      expect(
+        readingCompletionPercentage(paragraphIndex: 5, paragraphCount: 0),
+        0,
+      );
+    });
+
+    test('shows 1% at the first paragraph and 100% at the last', () {
+      expect(
+        readingCompletionPercentage(paragraphIndex: 0, paragraphCount: 100),
+        1,
+      );
+      expect(
+        readingCompletionPercentage(paragraphIndex: 99, paragraphCount: 100),
+        100,
+      );
+    });
+
+    test('clamps out-of-range positions', () {
+      expect(
+        readingCompletionPercentage(paragraphIndex: -4, paragraphCount: 10),
+        10,
+      );
+      expect(
+        readingCompletionPercentage(paragraphIndex: 50, paragraphCount: 10),
+        100,
+      );
+    });
+
+    test('rounds to nearest percentage point', () {
+      expect(
+        readingCompletionPercentage(paragraphIndex: 50, paragraphCount: 201),
+        25,
+      );
+      expect(
+        readingCompletionPercentage(paragraphIndex: 1, paragraphCount: 3),
+        67,
+      );
+    });
+  });
+
+  group('ReaderProgressLabel', () {
+    testWidgets('exposes a clear reading progress semantics value', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ReaderProgressLabel(
+              paragraphIndex: 24,
+              paragraphCount: 100,
+              color: Colors.black,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('25%'), findsOneWidget);
+      final semantics = tester.getSemantics(find.byType(ReaderProgressLabel));
+      expect(
+        semantics,
+        matchesSemantics(
+          label: 'Reading progress',
+          value: '25 percent',
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('exposes semantics value for milestone percentages', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ReaderProgressLabel(
+              paragraphIndex: 19,
+              paragraphCount: 100,
+              color: Colors.black,
+            ),
+          ),
+        ),
+      );
+
+      final semantics = tester.getSemantics(find.byType(ReaderProgressLabel));
+      expect(
+        semantics,
+        matchesSemantics(
+          label: 'Reading progress',
+          value: '20 percent',
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('updates label when visible paragraph changes', (tester) async {
+      final paragraph = ValueNotifier<int>(0);
+      addTearDown(paragraph.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ValueListenableBuilder<int>(
+              valueListenable: paragraph,
+              builder: (context, value, _) => ReaderProgressLabel(
+                paragraphIndex: value,
+                paragraphCount: 100,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('1%'), findsOneWidget);
+      paragraph.value = 24;
+      await tester.pump();
+      expect(find.text('25%'), findsOneWidget);
+    });
+  });
+
+  group('ReadingProgressAnnouncementState', () {
+    test('deduplicates already-announced milestones', () {
+      final state = ReadingProgressAnnouncementState();
+
+      expect(state.nextMilestoneToAnnounce(0), isNull);
+      expect(state.nextMilestoneToAnnounce(9), isNull);
+      expect(state.nextMilestoneToAnnounce(10), 10);
+      state.markMilestoneAnnounced(10);
+
+      expect(state.nextMilestoneToAnnounce(11), isNull);
+      expect(state.nextMilestoneToAnnounce(10), isNull);
+      expect(state.nextMilestoneToAnnounce(20), 20);
+      state.markMilestoneAnnounced(20);
+
+      expect(state.nextMilestoneToAnnounce(21), isNull);
+      expect(state.nextMilestoneToAnnounce(20), isNull);
+      expect(state.nextMilestoneToAnnounce(100), 100);
+    });
+  });
+
+  group('ReadingProgressAnnouncer', () {
+    testWidgets('announces only when entering a new milestone', (tester) async {
+      final messages = <String>[];
+      final announcer = ReadingProgressAnnouncer(
+        announce: (_, message, _) => messages.add(message),
+      );
+
+      announcer.announceIfNeeded(
+        paragraphIndex: 9,
+        paragraphCount: 100,
+        view: tester.view,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 10,
+        paragraphCount: 100,
+        view: tester.view,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 11,
+        paragraphCount: 100,
+        view: tester.view,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 10,
+        paragraphCount: 100,
+        view: tester.view,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 20,
+        paragraphCount: 100,
+        view: tester.view,
+        textDirection: TextDirection.ltr,
+      );
+
+      expect(
+        messages,
+        <String>['Reading progress 10 percent', 'Reading progress 20 percent'],
+      );
+    });
+
+    testWidgets('seeding restore progress suppresses immediate re-announcement', (
+      tester,
+    ) async {
+      final messages = <String>[];
+      final announcer = ReadingProgressAnnouncer(
+        announce: (_, message, _) => messages.add(message),
+      );
+
+      announcer.seedFromProgress(paragraphIndex: 20, paragraphCount: 100);
+      announcer.announceIfNeeded(
+        paragraphIndex: 20,
+        paragraphCount: 100,
+        view: tester.view,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 30,
+        paragraphCount: 100,
+        view: tester.view,
+        textDirection: TextDirection.ltr,
+      );
+
+      expect(messages, <String>['Reading progress 30 percent']);
     });
   });
 
