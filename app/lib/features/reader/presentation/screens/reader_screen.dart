@@ -759,7 +759,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           alignment: _topBarAlignment,
         );
       }
-      if (clampedIndex <= 0) return;
       _progressAnnouncer.seedFromProgress(
         paragraphIndex: clampedIndex,
         paragraphCount: paragraphCount,
