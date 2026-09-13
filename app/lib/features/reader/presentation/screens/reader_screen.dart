@@ -751,7 +751,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _restored = true;
     final index = progress?.paragraphIndex ?? 0;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final paragraphCount = _unitsSource?.length ?? 0;
+      final paragraphCount = _currentParagraphCount;
       final maxIndex = paragraphCount > 0 ? paragraphCount - 1 : 0;
       final int clampedIndex = index.clamp(0, maxIndex);
       _firstVisible = clampedIndex;
