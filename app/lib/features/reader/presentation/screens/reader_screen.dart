@@ -686,27 +686,32 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
               Expanded(
-                child: Text(
-                  compactReaderTitle(content.book.title),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.foreground,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _firstVisibleParagraph,
+                  builder: (context, paragraph, _) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          compactReaderTitle(content.book.title),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.foreground,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        ReaderProgressLabel(
+                          paragraphIndex: paragraph,
+                          paragraphCount: content.paragraphs.length,
+                          color: palette.foreground,
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
-              ValueListenableBuilder<int>(
-                valueListenable: _firstVisibleParagraph,
-                builder: (context, paragraph, _) {
-                  return ReaderProgressLabel(
-                    paragraphIndex: paragraph,
-                    paragraphCount: content.paragraphs.length,
-                    color: palette.foreground,
-                  );
-                },
-              ),
-              const SizedBox(width: 4),
               IconButton(
                 icon: Icon(Icons.text_decrease, color: palette.foreground),
                 tooltip: 'Smaller text',
