@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guten_speak/features/reader/presentation/screens/reader_screen.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -46,6 +47,34 @@ void main() {
       expect(
         readingCompletionPercentage(paragraphIndex: 50, paragraphCount: 10),
         100,
+      );
+    });
+  });
+
+  group('ReaderProgressLabel', () {
+    testWidgets('exposes a clear reading progress semantics value', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      addTearDown(handle.dispose);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ReaderProgressLabel(
+              paragraphIndex: 24,
+              paragraphCount: 100,
+              color: Colors.black,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('25%'), findsOneWidget);
+      final semantics = tester.getSemantics(find.byType(ReaderProgressLabel));
+      expect(
+        semantics,
+        matchesSemantics(label: 'Reading progress', value: '25 percent'),
       );
     });
   });

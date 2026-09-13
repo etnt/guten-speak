@@ -43,6 +43,38 @@ int readingCompletionPercentage({
   return (((clampedIndex + 1) / paragraphCount) * 100).floor().clamp(0, 100);
 }
 
+/// Top-bar text and semantics for current reading completion.
+class ReaderProgressLabel extends StatelessWidget {
+  const ReaderProgressLabel({
+    required this.paragraphIndex,
+    required this.paragraphCount,
+    required this.color,
+    super.key,
+  });
+
+  final int paragraphIndex;
+  final int paragraphCount;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final percentage = readingCompletionPercentage(
+      paragraphIndex: paragraphIndex,
+      paragraphCount: paragraphCount,
+    );
+    return Semantics(
+      label: 'Reading progress',
+      value: '$percentage percent',
+      child: ExcludeSemantics(
+        child: Text(
+          '$percentage%',
+          style: TextStyle(color: color, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+}
+
 /// Returns the first paragraph with content visible below the reader's
 /// overlaid top bar.
 ///
@@ -666,22 +698,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               ValueListenableBuilder<int>(
                 valueListenable: _firstVisibleParagraph,
                 builder: (context, paragraph, _) {
-                  final percentage = readingCompletionPercentage(
+                  return ReaderProgressLabel(
                     paragraphIndex: paragraph,
                     paragraphCount: content.paragraphs.length,
-                  );
-                  return Semantics(
-                    label: 'Reading progress',
-                    value: '$percentage percent',
-                    child: ExcludeSemantics(
-                      child: Text(
-                        '$percentage%',
-                        style: TextStyle(
-                          color: palette.foreground,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    color: palette.foreground,
                   );
                 },
               ),
