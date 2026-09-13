@@ -121,29 +121,22 @@ void main() {
     });
   });
 
-  group('shouldAnnounceProgressMilestone', () {
-    test('only announces when entering a new milestone', () {
-      int? lastMilestone;
+  group('ReadingProgressAnnouncementState', () {
+    test('deduplicates already-announced milestones', () {
+      final state = ReadingProgressAnnouncementState();
 
-      bool check(int percentage) {
-        final announce = shouldAnnounceProgressMilestone(
-          percentage: percentage,
-          lastAnnouncedMilestone: lastMilestone,
-        );
-        if (announce) {
-          lastMilestone = progressAnnouncementMilestone(percentage);
-        }
-        return announce;
-      }
+      expect(state.nextMilestoneToAnnounce(9), isNull);
+      expect(state.nextMilestoneToAnnounce(10), 10);
+      state.markMilestoneAnnounced(10);
 
-      expect(check(9), isFalse);
-      expect(check(10), isTrue);
-      expect(check(11), isFalse);
-      expect(check(10), isFalse);
-      expect(check(20), isTrue);
-      expect(check(21), isFalse);
-      expect(check(20), isFalse);
-      expect(check(100), isTrue);
+      expect(state.nextMilestoneToAnnounce(11), isNull);
+      expect(state.nextMilestoneToAnnounce(10), isNull);
+      expect(state.nextMilestoneToAnnounce(20), 20);
+      state.markMilestoneAnnounced(20);
+
+      expect(state.nextMilestoneToAnnounce(21), isNull);
+      expect(state.nextMilestoneToAnnounce(20), isNull);
+      expect(state.nextMilestoneToAnnounce(100), 100);
     });
   });
 

@@ -59,6 +59,25 @@ bool shouldAnnounceProgressMilestone({
   return milestone != null && milestone != lastAnnouncedMilestone;
 }
 
+/// Tracks milestone announcements and deduplicates repeated announcements.
+class ReadingProgressAnnouncementState {
+  int? _lastAnnouncedMilestone;
+
+  int? nextMilestoneToAnnounce(int percentage) {
+    if (!shouldAnnounceProgressMilestone(
+      percentage: percentage,
+      lastAnnouncedMilestone: _lastAnnouncedMilestone,
+    )) {
+      return null;
+    }
+    return progressAnnouncementMilestone(percentage);
+  }
+
+  void markMilestoneAnnounced(int milestone) {
+    _lastAnnouncedMilestone = milestone;
+  }
+}
+
 /// Top-bar text and semantics for current reading completion.
 class ReaderProgressLabel extends StatelessWidget {
   const ReaderProgressLabel({
@@ -173,7 +192,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // bottom-bar bookmark toggle) without rebuilding the whole reader.
   final ValueNotifier<int> _firstVisibleParagraph = ValueNotifier<int>(0);
   Timer? _saveDebounce;
-  int? _lastAnnouncedProgressMilestone;
+  final ReadingProgressAnnouncementState _announcementState =
+      ReadingProgressAnnouncementState();
   int _currentParagraphCount = 0;
 
   // Narration sync: units are segmented the same way the player does, so the
@@ -228,24 +248,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 
-  bool _shouldAnnounceProgressMilestone(int percentage) {
-    return shouldAnnounceProgressMilestone(
-      percentage: percentage,
-      lastAnnouncedMilestone: _lastAnnouncedProgressMilestone,
-    );
-  }
-
   void _announceProgressMilestoneIfNeeded() {
     if (_currentParagraphCount <= 0 || !mounted) return;
     final percentage = readingCompletionPercentage(
       paragraphIndex: _firstVisible,
       paragraphCount: _currentParagraphCount,
     );
-    if (!_shouldAnnounceProgressMilestone(percentage)) return;
-    _lastAnnouncedProgressMilestone = progressAnnouncementMilestone(percentage);
+    final milestone = _announcementState.nextMilestoneToAnnounce(percentage);
+    if (milestone == null) return;
     final direction = Directionality.maybeOf(context);
     if (direction == null) return;
     SemanticsService.announce('Reading progress $percentage percent', direction);
+    _announcementState.markMilestoneAnnounced(milestone);
   }
 
   void _jumpToParagraph(int index) {
