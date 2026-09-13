@@ -252,6 +252,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   final Map<int, int> _paraToFirstUnit = <int, int>{};
   int? _lastFollowedParagraph;
   bool _narrationCommandRunning = false;
+  bool _skipNextProgressAnnouncement = false;
 
   @override
   void initState() {
@@ -275,7 +276,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (index != _firstVisible) {
       _firstVisible = index;
       _firstVisibleParagraph.value = index;
-      _announceProgressMilestoneIfNeeded();
+      if (_skipNextProgressAnnouncement) {
+        _skipNextProgressAnnouncement = false;
+      } else {
+        _announceProgressMilestoneIfNeeded();
+      }
       _saveDebounce?.cancel();
       _saveDebounce = Timer(const Duration(seconds: 1), () {
         unawaited(
@@ -420,6 +425,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (paragraph == null || paragraph == _lastFollowedParagraph) return;
     _lastFollowedParagraph = paragraph;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _skipNextProgressAnnouncement = true;
       _jumpToParagraph(paragraph);
     });
   }
