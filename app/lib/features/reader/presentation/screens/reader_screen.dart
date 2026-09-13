@@ -46,10 +46,10 @@ int readingCompletionPercentage({
 
 /// Returns the progress milestone to announce (10% steps and 100%), if any.
 int? progressAnnouncementMilestone(int percentage) {
-  if (percentage > 0 && (percentage == 100 || percentage % 10 == 0)) {
-    return percentage;
-  }
-  return null;
+  if (percentage <= 0) return null;
+  if (percentage >= 100) return 100;
+  final bucket = (percentage ~/ 10) * 10;
+  return bucket == 0 ? null : bucket;
 }
 
 /// Whether [percentage] should trigger a live announcement.
@@ -147,6 +147,7 @@ class ReaderProgressLabel extends StatelessWidget {
     return Semantics(
       label: 'Reading progress',
       value: '$percentage percent',
+      liveRegion: true,
       child: ExcludeSemantics(
         child: Text(
           '$percentage%',
