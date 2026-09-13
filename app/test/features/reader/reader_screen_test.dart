@@ -88,6 +88,34 @@ void main() {
         matchesSemantics(
           label: 'Reading progress',
           value: '25 percent',
+        ),
+      );
+    });
+
+    testWidgets('uses live-region announcements at milestone percentages', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      addTearDown(handle.dispose);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ReaderProgressLabel(
+              paragraphIndex: 20,
+              paragraphCount: 100,
+              color: Colors.black,
+            ),
+          ),
+        ),
+      );
+
+      final semantics = tester.getSemantics(find.byType(ReaderProgressLabel));
+      expect(
+        semantics,
+        matchesSemantics(
+          label: 'Reading progress',
+          value: '20 percent',
           liveRegion: true,
         ),
       );
