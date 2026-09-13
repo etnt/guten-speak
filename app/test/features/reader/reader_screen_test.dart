@@ -28,10 +28,10 @@ void main() {
       );
     });
 
-    test('shows 0% at the first paragraph and 100% at the last', () {
+    test('shows 1% at the first paragraph and 100% at the last', () {
       expect(
         readingCompletionPercentage(paragraphIndex: 0, paragraphCount: 100),
-        0,
+        1,
       );
       expect(
         readingCompletionPercentage(paragraphIndex: 99, paragraphCount: 100),
@@ -42,7 +42,7 @@ void main() {
     test('clamps out-of-range positions', () {
       expect(
         readingCompletionPercentage(paragraphIndex: -4, paragraphCount: 10),
-        0,
+        1,
       );
       expect(
         readingCompletionPercentage(paragraphIndex: 50, paragraphCount: 10),
@@ -57,7 +57,7 @@ void main() {
       );
       expect(
         readingCompletionPercentage(paragraphIndex: 1, paragraphCount: 3),
-        50,
+        67,
       );
     });
   });
@@ -120,6 +120,31 @@ void main() {
           liveRegion: true,
         ),
       );
+    });
+
+    testWidgets('updates label when visible paragraph changes', (tester) async {
+      final paragraph = ValueNotifier<int>(0);
+      addTearDown(paragraph.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ValueListenableBuilder<int>(
+              valueListenable: paragraph,
+              builder: (context, value, _) => ReaderProgressLabel(
+                paragraphIndex: value,
+                paragraphCount: 100,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('1%'), findsOneWidget);
+      paragraph.value = 24;
+      await tester.pump();
+      expect(find.text('25%'), findsOneWidget);
     });
   });
 
