@@ -671,12 +671,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     paragraphCount: content.paragraphs.length,
                   );
                   return Semantics(
-                    label: 'Reading progress: $percentage percent',
-                    child: Text(
-                      '$percentage%',
-                      style: TextStyle(
-                        color: palette.foreground,
-                        fontWeight: FontWeight.w600,
+                    label: 'Reading progress',
+                    value: '$percentage percent',
+                    child: ExcludeSemantics(
+                      child: Text(
+                        '$percentage%',
+                        style: TextStyle(
+                          color: palette.foreground,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   );
