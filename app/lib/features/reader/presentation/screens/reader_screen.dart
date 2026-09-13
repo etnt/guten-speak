@@ -733,13 +733,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (progressAsync.isLoading) return;
     _restored = true;
     final index = progress?.paragraphIndex ?? 0;
-    if (index <= 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _firstVisible = index;
       _firstVisibleParagraph.value = index;
       if (_itemScrollController.isAttached) {
         _itemScrollController.jumpTo(index: index, alignment: _topBarAlignment);
       }
+      _announceProgressMilestoneIfNeeded();
     });
   }
 
