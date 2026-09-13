@@ -179,6 +179,27 @@ void main() {
         <String>['Reading progress 10 percent', 'Reading progress 20 percent'],
       );
     });
+
+    test('seeding restore progress suppresses immediate re-announcement', () {
+      final messages = <String>[];
+      final announcer = ReadingProgressAnnouncer(
+        announce: (message, _) => messages.add(message),
+      );
+
+      announcer.seedFromProgress(paragraphIndex: 20, paragraphCount: 100);
+      announcer.announceIfNeeded(
+        paragraphIndex: 20,
+        paragraphCount: 100,
+        textDirection: TextDirection.ltr,
+      );
+      announcer.announceIfNeeded(
+        paragraphIndex: 30,
+        paragraphCount: 100,
+        textDirection: TextDirection.ltr,
+      );
+
+      expect(messages, <String>['Reading progress 30 percent']);
+    });
   });
 
   group('firstReadableParagraphIndex', () {

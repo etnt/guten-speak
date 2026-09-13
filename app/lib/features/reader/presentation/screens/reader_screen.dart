@@ -109,6 +109,20 @@ class ReadingProgressAnnouncer {
     _announce('Reading progress $milestone percent', textDirection);
     _state.markMilestoneAnnounced(milestone);
   }
+
+  void seedFromProgress({
+    required int paragraphIndex,
+    required int paragraphCount,
+  }) {
+    if (paragraphCount <= 0) return;
+    final percentage = readingCompletionPercentage(
+      paragraphIndex: paragraphIndex,
+      paragraphCount: paragraphCount,
+    );
+    final milestone = progressAnnouncementMilestone(percentage);
+    if (milestone == null) return;
+    _state.markMilestoneAnnounced(milestone);
+  }
 }
 
 /// Top-bar text and semantics for current reading completion.
@@ -746,7 +760,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         );
       }
       if (clampedIndex <= 0) return;
-      _announceProgressMilestoneIfNeeded();
+      _progressAnnouncer.seedFromProgress(
+        paragraphIndex: clampedIndex,
+        paragraphCount: paragraphCount,
+      );
     });
   }
 
