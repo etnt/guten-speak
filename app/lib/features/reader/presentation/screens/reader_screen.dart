@@ -50,12 +50,14 @@ class ReaderProgressLabel extends StatelessWidget {
     required this.paragraphIndex,
     required this.paragraphCount,
     required this.color,
+    this.liveRegion = false,
     super.key,
   });
 
   final int paragraphIndex;
   final int paragraphCount;
   final Color color;
+  final bool liveRegion;
 
   @override
   Widget build(BuildContext context) {
@@ -63,11 +65,10 @@ class ReaderProgressLabel extends StatelessWidget {
       paragraphIndex: paragraphIndex,
       paragraphCount: paragraphCount,
     );
-    final announceUpdate = percentage == 100 || percentage % 10 == 0;
     return Semantics(
       label: 'Reading progress',
       value: '$percentage percent',
-      liveRegion: announceUpdate,
+      liveRegion: liveRegion,
       child: ExcludeSemantics(
         child: Text(
           '$percentage%',
@@ -160,6 +161,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // bottom-bar bookmark toggle) without rebuilding the whole reader.
   final ValueNotifier<int> _firstVisibleParagraph = ValueNotifier<int>(0);
   Timer? _saveDebounce;
+  int? _lastAnnouncedProgressMilestone;
 
   // Narration sync: units are segmented the same way the player does, so the
   // reader can map the current unit → paragraph (highlight/follow) and a tapped
@@ -210,6 +212,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       itemTrailingPaddingFraction: _paragraphTrailingPaddingAlignment,
       fallback: _firstVisible,
     );
+  }
+
+  bool _shouldAnnounceProgressMilestone(int percentage) {
+    final milestone = (percentage == 100 || percentage % 10 == 0)
+        ? percentage
+        : null;
+    final announce = milestone != null && milestone != _lastAnnouncedProgressMilestone;
+    _lastAnnouncedProgressMilestone = milestone;
+    return announce;
   }
 
   void _jumpToParagraph(int index) {
@@ -691,6 +702,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 child: ValueListenableBuilder<int>(
                   valueListenable: _firstVisibleParagraph,
                   builder: (context, paragraph, _) {
+                    final percentage = readingCompletionPercentage(
+                      paragraphIndex: paragraph,
+                      paragraphCount: content.paragraphs.length,
+                    );
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -708,6 +723,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                           paragraphIndex: paragraph,
                           paragraphCount: content.paragraphs.length,
                           color: palette.foreground,
+                          liveRegion: _shouldAnnounceProgressMilestone(
+                            percentage,
+                          ),
                         ),
                       ],
                     );
