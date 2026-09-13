@@ -242,6 +242,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   Timer? _saveDebounce;
   final ReadingProgressAnnouncer _progressAnnouncer =
       ReadingProgressAnnouncer();
+  int _currentParagraphCount = 0;
 
   // Narration sync: units are segmented the same way the player does, so the
   // reader can map the current unit → paragraph (highlight/follow) and a tapped
@@ -296,7 +297,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _announceProgressMilestoneIfNeeded() {
-    final paragraphCount = _unitsSource?.length ?? 0;
+    final paragraphCount = _currentParagraphCount;
     if (paragraphCount <= 0 || !mounted) return;
     _progressAnnouncer.announceIfNeeded(
       paragraphIndex: _firstVisible,
@@ -662,6 +663,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _ReaderPalette palette,
     NarrationPlaybackState? playback,
   ) {
+    _currentParagraphCount = content.paragraphs.length;
     _maybeRestore();
     _unitsFor(content);
     _followNarration(playback);
@@ -806,10 +808,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ValueListenableBuilder<int>(
                       valueListenable: _firstVisibleParagraph,
                       builder: (context, paragraph, _) {
-                        final paragraphCount = _unitsSource?.length ?? 0;
                         return ReaderProgressLabel(
                           paragraphIndex: paragraph,
-                          paragraphCount: paragraphCount,
+                          paragraphCount: _currentParagraphCount,
                           color: palette.foreground,
                         );
                       },
