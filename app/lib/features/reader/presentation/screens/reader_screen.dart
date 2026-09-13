@@ -736,7 +736,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final paragraphCount = _unitsSource?.length ?? 0;
       final maxIndex = paragraphCount > 0 ? paragraphCount - 1 : 0;
-      final clampedIndex = index.clamp(0, maxIndex) as int;
+      final int clampedIndex = index.clamp(0, maxIndex);
       _firstVisible = clampedIndex;
       _firstVisibleParagraph.value = clampedIndex;
       if (_itemScrollController.isAttached) {
