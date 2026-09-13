@@ -33,6 +33,16 @@ String compactReaderTitle(String title) {
   return '${String.fromCharCodes(characters.take(limit))}…';
 }
 
+/// Converts a reader position into an integer completion percentage.
+int readingCompletionPercentage({
+  required int paragraphIndex,
+  required int paragraphCount,
+}) {
+  if (paragraphCount <= 0) return 0;
+  final clampedIndex = paragraphIndex.clamp(0, paragraphCount - 1);
+  return (((clampedIndex + 1) / paragraphCount) * 100).floor().clamp(0, 100);
+}
+
 /// Returns the first paragraph with content visible below the reader's
 /// overlaid top bar.
 ///
@@ -653,6 +663,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                   ),
                 ),
               ),
+              ValueListenableBuilder<int>(
+                valueListenable: _firstVisibleParagraph,
+                builder: (context, paragraph, _) {
+                  final percentage = readingCompletionPercentage(
+                    paragraphIndex: paragraph,
+                    paragraphCount: content.paragraphs.length,
+                  );
+                  return Text(
+                    '$percentage%',
+                    style: TextStyle(
+                      color: palette.foreground,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 4),
               IconButton(
                 icon: Icon(Icons.text_decrease, color: palette.foreground),
                 tooltip: 'Smaller text',

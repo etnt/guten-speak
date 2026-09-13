@@ -19,6 +19,37 @@ void main() {
     });
   });
 
+  group('readingCompletionPercentage', () {
+    test('returns 0 when paragraph count is empty', () {
+      expect(
+        readingCompletionPercentage(paragraphIndex: 5, paragraphCount: 0),
+        0,
+      );
+    });
+
+    test('shows 1% at the first paragraph and 100% at the last', () {
+      expect(
+        readingCompletionPercentage(paragraphIndex: 0, paragraphCount: 100),
+        1,
+      );
+      expect(
+        readingCompletionPercentage(paragraphIndex: 99, paragraphCount: 100),
+        100,
+      );
+    });
+
+    test('clamps out-of-range positions', () {
+      expect(
+        readingCompletionPercentage(paragraphIndex: -4, paragraphCount: 10),
+        1,
+      );
+      expect(
+        readingCompletionPercentage(paragraphIndex: 50, paragraphCount: 10),
+        100,
+      );
+    });
+  });
+
   group('firstReadableParagraphIndex', () {
     test('ignores trailing padding below a hidden paragraph', () {
       final positions = <ItemPosition>[
