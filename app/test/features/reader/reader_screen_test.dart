@@ -92,7 +92,7 @@ void main() {
       );
     });
 
-    testWidgets('uses live-region announcements at milestone percentages', (
+    testWidgets('exposes semantics value for milestone percentages', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -125,6 +125,7 @@ void main() {
     test('deduplicates already-announced milestones', () {
       final state = ReadingProgressAnnouncementState();
 
+      expect(state.nextMilestoneToAnnounce(0), isNull);
       expect(state.nextMilestoneToAnnounce(9), isNull);
       expect(state.nextMilestoneToAnnounce(10), 10);
       state.markMilestoneAnnounced(10);

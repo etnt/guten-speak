@@ -46,7 +46,9 @@ int readingCompletionPercentage({
 
 /// Returns the progress milestone to announce (10% steps and 100%), if any.
 int? progressAnnouncementMilestone(int percentage) {
-  if (percentage == 100 || percentage % 10 == 0) return percentage;
+  if (percentage > 0 && (percentage == 100 || percentage % 10 == 0)) {
+    return percentage;
+  }
   return null;
 }
 
