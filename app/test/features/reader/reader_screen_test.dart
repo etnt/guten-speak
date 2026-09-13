@@ -88,6 +88,7 @@ void main() {
         matchesSemantics(
           label: 'Reading progress',
           value: '25 percent',
+          liveRegion: true,
         ),
       );
     });
@@ -116,6 +117,7 @@ void main() {
         matchesSemantics(
           label: 'Reading progress',
           value: '20 percent',
+          liveRegion: true,
         ),
       );
     });
