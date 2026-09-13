@@ -123,6 +123,32 @@ void main() {
     });
   });
 
+  group('shouldAnnounceProgressMilestone', () {
+    test('only announces when entering a new milestone', () {
+      int? lastMilestone;
+
+      bool check(int percentage) {
+        final announce = shouldAnnounceProgressMilestone(
+          percentage: percentage,
+          lastAnnouncedMilestone: lastMilestone,
+        );
+        if (announce) {
+          lastMilestone = progressAnnouncementMilestone(percentage);
+        }
+        return announce;
+      }
+
+      expect(check(9), isFalse);
+      expect(check(10), isTrue);
+      expect(check(11), isFalse);
+      expect(check(10), isFalse);
+      expect(check(20), isTrue);
+      expect(check(21), isFalse);
+      expect(check(20), isFalse);
+      expect(check(100), isTrue);
+    });
+  });
+
   group('firstReadableParagraphIndex', () {
     test('ignores trailing padding below a hidden paragraph', () {
       final positions = <ItemPosition>[

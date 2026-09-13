@@ -44,6 +44,21 @@ int readingCompletionPercentage({
   return ((clampedIndex / (paragraphCount - 1)) * 100).round().clamp(0, 100);
 }
 
+/// Returns the progress milestone to announce (10% steps and 100%), if any.
+int? progressAnnouncementMilestone(int percentage) {
+  if (percentage == 100 || percentage % 10 == 0) return percentage;
+  return null;
+}
+
+/// Whether [percentage] should trigger a live announcement.
+bool shouldAnnounceProgressMilestone({
+  required int percentage,
+  required int? lastAnnouncedMilestone,
+}) {
+  final milestone = progressAnnouncementMilestone(percentage);
+  return milestone != null && milestone != lastAnnouncedMilestone;
+}
+
 /// Top-bar text and semantics for current reading completion.
 class ReaderProgressLabel extends StatelessWidget {
   const ReaderProgressLabel({
@@ -215,11 +230,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   bool _shouldAnnounceProgressMilestone(int percentage) {
-    final milestone = (percentage == 100 || percentage % 10 == 0)
-        ? percentage
-        : null;
-    final announce = milestone != null && milestone != _lastAnnouncedProgressMilestone;
-    _lastAnnouncedProgressMilestone = milestone;
+    final announce = shouldAnnounceProgressMilestone(
+      percentage: percentage,
+      lastAnnouncedMilestone: _lastAnnouncedProgressMilestone,
+    );
+    if (announce) {
+      _lastAnnouncedProgressMilestone = progressAnnouncementMilestone(
+        percentage,
+      );
+    }
     return announce;
   }
 
@@ -699,37 +718,37 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
               Expanded(
-                child: ValueListenableBuilder<int>(
-                  valueListenable: _firstVisibleParagraph,
-                  builder: (context, paragraph, _) {
-                    final percentage = readingCompletionPercentage(
-                      paragraphIndex: paragraph,
-                      paragraphCount: content.paragraphs.length,
-                    );
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          compactReaderTitle(content.book.title),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: palette.foreground,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        ReaderProgressLabel(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      compactReaderTitle(content.book.title),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.foreground,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    ValueListenableBuilder<int>(
+                      valueListenable: _firstVisibleParagraph,
+                      builder: (context, paragraph, _) {
+                        final percentage = readingCompletionPercentage(
+                          paragraphIndex: paragraph,
+                          paragraphCount: content.paragraphs.length,
+                        );
+                        return ReaderProgressLabel(
                           paragraphIndex: paragraph,
                           paragraphCount: content.paragraphs.length,
                           color: palette.foreground,
                           liveRegion: _shouldAnnounceProgressMilestone(
                             percentage,
                           ),
-                        ),
-                      ],
-                    );
-                  },
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
               IconButton(
