@@ -80,11 +80,12 @@ class ReadingProgressAnnouncementState {
   }
 }
 
-typedef ReadingProgressAnnounce = void Function(
-  FlutterView view,
-  String message,
-  TextDirection textDirection,
-);
+typedef ReadingProgressAnnounce =
+    void Function(
+      FlutterView view,
+      String message,
+      TextDirection textDirection,
+    );
 
 /// Announces reading milestones while suppressing duplicate announcements.
 class ReadingProgressAnnouncer {

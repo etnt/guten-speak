@@ -84,10 +84,7 @@ void main() {
       final semantics = tester.getSemantics(find.byType(ReaderProgressLabel));
       expect(
         semantics,
-        matchesSemantics(
-          label: 'Reading progress',
-          value: '25 percent',
-        ),
+        matchesSemantics(label: 'Reading progress', value: '25 percent'),
       );
       handle.dispose();
     });
@@ -112,10 +109,7 @@ void main() {
       final semantics = tester.getSemantics(find.byType(ReaderProgressLabel));
       expect(
         semantics,
-        matchesSemantics(
-          label: 'Reading progress',
-          value: '20 percent',
-        ),
+        matchesSemantics(label: 'Reading progress', value: '20 percent'),
       );
       handle.dispose();
     });
@@ -204,36 +198,37 @@ void main() {
         textDirection: TextDirection.ltr,
       );
 
-      expect(
-        messages,
-        <String>['Reading progress 10 percent', 'Reading progress 20 percent'],
-      );
+      expect(messages, <String>[
+        'Reading progress 10 percent',
+        'Reading progress 20 percent',
+      ]);
     });
 
-    testWidgets('seeding restore progress suppresses immediate re-announcement', (
-      tester,
-    ) async {
-      final messages = <String>[];
-      final announcer = ReadingProgressAnnouncer(
-        announce: (_, message, _) => messages.add(message),
-      );
+    testWidgets(
+      'seeding restore progress suppresses immediate re-announcement',
+      (tester) async {
+        final messages = <String>[];
+        final announcer = ReadingProgressAnnouncer(
+          announce: (_, message, _) => messages.add(message),
+        );
 
-      announcer.seedFromProgress(paragraphIndex: 20, paragraphCount: 100);
-      announcer.announceIfNeeded(
-        paragraphIndex: 20,
-        paragraphCount: 100,
-        view: tester.view,
-        textDirection: TextDirection.ltr,
-      );
-      announcer.announceIfNeeded(
-        paragraphIndex: 30,
-        paragraphCount: 100,
-        view: tester.view,
-        textDirection: TextDirection.ltr,
-      );
+        announcer.seedFromProgress(paragraphIndex: 20, paragraphCount: 100);
+        announcer.announceIfNeeded(
+          paragraphIndex: 20,
+          paragraphCount: 100,
+          view: tester.view,
+          textDirection: TextDirection.ltr,
+        );
+        announcer.announceIfNeeded(
+          paragraphIndex: 30,
+          paragraphCount: 100,
+          view: tester.view,
+          textDirection: TextDirection.ltr,
+        );
 
-      expect(messages, <String>['Reading progress 30 percent']);
-    });
+        expect(messages, <String>['Reading progress 30 percent']);
+      },
+    );
   });
 
   group('firstReadableParagraphIndex', () {
