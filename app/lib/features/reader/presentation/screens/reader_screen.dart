@@ -100,7 +100,6 @@ class ReaderProgressLabel extends StatelessWidget {
     return Semantics(
       label: 'Reading progress',
       value: '$percentage percent',
-      liveRegion: true,
       child: ExcludeSemantics(
         child: Text(
           '$percentage%',
@@ -195,7 +194,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   Timer? _saveDebounce;
   final ReadingProgressAnnouncementState _announcementState =
       ReadingProgressAnnouncementState();
-  int _currentParagraphCount = 0;
 
   // Narration sync: units are segmented the same way the player does, so the
   // reader can map the current unit → paragraph (highlight/follow) and a tapped
@@ -250,10 +248,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _announceProgressMilestoneIfNeeded() {
-    if (_currentParagraphCount <= 0 || !mounted) return;
+    final paragraphCount = _unitsSource?.length ?? 0;
+    if (paragraphCount <= 0 || !mounted) return;
     final percentage = readingCompletionPercentage(
       paragraphIndex: _firstVisible,
-      paragraphCount: _currentParagraphCount,
+      paragraphCount: paragraphCount,
     );
     final milestone = _announcementState.nextMilestoneToAnnounce(percentage);
     if (milestone == null) return;
@@ -620,7 +619,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _ReaderPalette palette,
     NarrationPlaybackState? playback,
   ) {
-    _currentParagraphCount = content.paragraphs.length;
     _maybeRestore();
     _unitsFor(content);
     _followNarration(playback);
