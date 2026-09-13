@@ -233,7 +233,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // paragraph → its first unit (seek). Cached by the paragraphs list identity so
   // it's computed once per loaded book rather than on every rebuild.
   List<String>? _unitsSource;
-  int _paragraphCount = 0;
   List<NarrationUnit> _units = const <NarrationUnit>[];
   final Map<int, int> _paraToFirstUnit = <int, int>{};
   int? _lastFollowedParagraph;
@@ -282,7 +281,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _announceProgressMilestoneIfNeeded() {
-    final paragraphCount = _paragraphCount;
+    final paragraphCount = _unitsSource?.length ?? 0;
     if (paragraphCount <= 0 || !mounted) return;
     _progressAnnouncer.announceIfNeeded(
       paragraphIndex: _firstVisible,
@@ -333,7 +332,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   /// the paragraph → first-unit lookup, caching by the paragraphs list identity
   /// so it only runs once per loaded book.
   List<NarrationUnit> _unitsFor(ReaderContent content) {
-    _paragraphCount = content.paragraphs.length;
     if (identical(_unitsSource, content.paragraphs)) return _units;
     _unitsSource = content.paragraphs;
     _units = const NarrationSegmenter().segmentParagraphs(content.paragraphs);
@@ -784,9 +782,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ValueListenableBuilder<int>(
                       valueListenable: _firstVisibleParagraph,
                       builder: (context, paragraph, _) {
+                        final paragraphCount = _unitsSource?.length ?? 0;
                         return ReaderProgressLabel(
                           paragraphIndex: paragraph,
-                          paragraphCount: _paragraphCount,
+                          paragraphCount: paragraphCount,
                           color: palette.foreground,
                         );
                       },
