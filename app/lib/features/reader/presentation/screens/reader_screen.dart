@@ -749,7 +749,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final progress = progressAsync.valueOrNull;
     if (progressAsync.isLoading) return;
     _restored = true;
-    final index = progress?.paragraphIndex ?? 0;
+    final index = progress?.paragraphIndex;
+    if (index == null || index <= 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final paragraphCount = _currentParagraphCount;
       final maxIndex = paragraphCount > 0 ? paragraphCount - 1 : 0;
