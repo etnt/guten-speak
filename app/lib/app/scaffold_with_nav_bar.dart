@@ -65,8 +65,7 @@ class _ScaffoldWithNavBarState extends ConsumerState<ScaffoldWithNavBar> {
               }
               widget.navigationShell.goBranch(
                 index,
-                initialLocation:
-                    index == widget.navigationShell.currentIndex,
+                initialLocation: index == widget.navigationShell.currentIndex,
               );
             },
             destinations: [
