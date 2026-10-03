@@ -18,6 +18,7 @@ import '../../../library/presentation/providers/library_providers.dart';
 import '../../../narration/domain/entities/narration_playback.dart';
 import '../../../narration/presentation/providers/narration_player_providers.dart';
 import '../../../narration/presentation/providers/narration_settings_providers.dart';
+import '../../../narration/presentation/providers/sleep_timer_provider.dart';
 import '../../../narration/presentation/providers/tts_providers.dart';
 import '../../../voices/domain/entities/voice.dart';
 import '../../../voices/presentation/providers/voice_providers.dart';
@@ -438,6 +439,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   /// book. When not narrating, tapping does nothing (the reading controls stay
   /// visible at all times).
   Future<void> _onParagraphTap(int index, int paragraphCount) async {
+    ref.read(sleepTimerControllerProvider.notifier).resetTimer();
     final playback = ref.read(narrationPlaybackProvider).valueOrNull;
     final narrating =
         playback != null &&
@@ -464,6 +466,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   /// paragraph being read toggles play/pause; tapping another paragraph reads
   /// from there. Narration must first be enabled from the bottom bar.
   Future<void> _onParagraphReadFromHere(int index, int paragraphCount) async {
+    ref.read(sleepTimerControllerProvider.notifier).resetTimer();
     final unit = _firstUnitAtOrAfter(index, paragraphCount);
     if (unit == null) return;
 
@@ -641,6 +644,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   /// Opens the dictionary look-up sheet for a long-pressed word.
   void _onWordLongPress(String word) {
+    ref.read(sleepTimerControllerProvider.notifier).resetTimer();
     unawaited(HapticFeedback.selectionClick());
     unawaited(showDictionaryLookup(context, word));
   }
@@ -652,6 +656,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final settings = ref.watch(readerSettingsProvider);
     final palette = _paletteFor(settings.themeMode);
     final playback = ref.watch(narrationPlaybackProvider).valueOrNull;
+    // Initialize the keepAlive sleep timer controller for this reader session.
+    ref.watch(sleepTimerControllerProvider);
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -691,60 +697,73 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     return Stack(
       children: [
-        ScrollablePositionedList.builder(
-          itemScrollController: _itemScrollController,
-          itemPositionsListener: _itemPositionsListener,
-          padding: EdgeInsets.fromLTRB(
-            20,
-            MediaQuery.of(context).padding.top + 64,
-            20,
-            MediaQuery.of(context).padding.bottom + 80,
+        Listener(
+          onPointerDown: (_) =>
+              ref.read(sleepTimerControllerProvider.notifier).resetTimer(),
+          child: NotificationListener<UserScrollNotification>(
+            onNotification: (notification) {
+              if (notification.direction != ScrollDirection.idle) {
+                ref.read(sleepTimerControllerProvider.notifier).resetTimer();
+              }
+              return false;
+            },
+            child: ScrollablePositionedList.builder(
+              itemScrollController: _itemScrollController,
+              itemPositionsListener: _itemPositionsListener,
+              padding: EdgeInsets.fromLTRB(
+                20,
+                MediaQuery.of(context).padding.top + 64,
+                20,
+                MediaQuery.of(context).padding.bottom + 80,
+              ),
+              itemCount: content.paragraphs.length,
+              itemBuilder: (context, index) {
+                final isHeading = headingIndices.contains(index);
+                final isNarrated = index == narratedParagraph;
+                final currentAudioReady =
+                    isNarrated &&
+                    (playback?.status == NarrationStatus.playing ||
+                        playback?.status == NarrationStatus.paused);
+                final isPrepared =
+                    narratedParagraph != null &&
+                    (currentAudioReady ||
+                        (preparedThroughParagraph != null &&
+                            index >= narratedParagraph &&
+                            index <= preparedThroughParagraph));
+                final isPlanned =
+                    !isPrepared &&
+                    narratedParagraph != null &&
+                    plannedThroughParagraph != null &&
+                    index >= narratedParagraph &&
+                    index <= plannedThroughParagraph;
+                final bandColor = isPrepared
+                    ? Colors.blue
+                    : (isPlanned ? Colors.redAccent : null);
+                return _ReaderParagraph(
+                  text: content.paragraphs[index],
+                  style: TextStyle(
+                    color: palette.foreground,
+                    fontSize: isHeading ? baseSize * 1.25 : baseSize,
+                    height: 1.5,
+                    fontWeight: isHeading ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  textScaler: MediaQuery.textScalerOf(context),
+                  isNarrated: isNarrated,
+                  speakerActive: playback?.isPlaying ?? false,
+                  isBookmarked: bookmarkedIndices.contains(index),
+                  bandColor: bandColor,
+                  highlightColor: palette.foreground.withValues(alpha: 0.08),
+                  onTap: () => unawaited(
+                    _onParagraphTap(index, content.paragraphs.length),
+                  ),
+                  onDoubleTap: () => unawaited(
+                    _onParagraphReadFromHere(index, content.paragraphs.length),
+                  ),
+                  onWordLongPress: _onWordLongPress,
+                );
+              },
+            ),
           ),
-          itemCount: content.paragraphs.length,
-          itemBuilder: (context, index) {
-            final isHeading = headingIndices.contains(index);
-            final isNarrated = index == narratedParagraph;
-            final currentAudioReady =
-                isNarrated &&
-                (playback?.status == NarrationStatus.playing ||
-                    playback?.status == NarrationStatus.paused);
-            final isPrepared =
-                narratedParagraph != null &&
-                (currentAudioReady ||
-                    (preparedThroughParagraph != null &&
-                        index >= narratedParagraph &&
-                        index <= preparedThroughParagraph));
-            final isPlanned =
-                !isPrepared &&
-                narratedParagraph != null &&
-                plannedThroughParagraph != null &&
-                index >= narratedParagraph &&
-                index <= plannedThroughParagraph;
-            final bandColor = isPrepared
-                ? Colors.blue
-                : (isPlanned ? Colors.redAccent : null);
-            return _ReaderParagraph(
-              text: content.paragraphs[index],
-              style: TextStyle(
-                color: palette.foreground,
-                fontSize: isHeading ? baseSize * 1.25 : baseSize,
-                height: 1.5,
-                fontWeight: isHeading ? FontWeight.bold : FontWeight.normal,
-              ),
-              textScaler: MediaQuery.textScalerOf(context),
-              isNarrated: isNarrated,
-              speakerActive: playback?.isPlaying ?? false,
-              isBookmarked: bookmarkedIndices.contains(index),
-              bandColor: bandColor,
-              highlightColor: palette.foreground.withValues(alpha: 0.08),
-              onTap: () =>
-                  unawaited(_onParagraphTap(index, content.paragraphs.length)),
-              onDoubleTap: () => unawaited(
-                _onParagraphReadFromHere(index, content.paragraphs.length),
-              ),
-              onWordLongPress: _onWordLongPress,
-            );
-          },
         ),
         _buildTopBar(content, settings, palette),
         _buildBottomBar(content, palette, playback),

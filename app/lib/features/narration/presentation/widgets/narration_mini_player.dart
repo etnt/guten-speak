@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../domain/entities/narration_playback.dart';
 import '../providers/narration_player_providers.dart';
+import '../providers/sleep_timer_provider.dart';
 
 /// A compact now-playing bar shown above the bottom navigation whenever a book
 /// is loaded in the narration player. Tapping it opens the full player; the
@@ -85,6 +86,7 @@ class NarrationMiniPlayer extends ConsumerWidget {
   }
 
   Future<void> _toggle(WidgetRef ref, NarrationPlaybackState playback) async {
+    ref.read(sleepTimerControllerProvider.notifier).resetTimer();
     final handler = await ref.read(narrationAudioHandlerProvider.future);
     if (playback.isPlaying) {
       await handler.pause();

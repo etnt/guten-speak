@@ -553,6 +553,15 @@ class NarrationAudioHandler extends BaseAudioHandler {
     return planned > last ? last : planned;
   }
 
+  /// Returns the active book id and the paragraph index of the current
+  /// narration unit, or null when no session is loaded or the unit list is
+  /// empty.
+  ({int bookId, int paragraphIndex})? currentNarrationPosition() {
+    final id = _bookId;
+    if (id == null || _units.isEmpty || _index >= _units.length) return null;
+    return (bookId: id, paragraphIndex: _units[_index].paragraphIndex);
+  }
+
   Future<void> _saveProgress() async {
     final bookId = _bookId;
     final voiceId = _voiceId;

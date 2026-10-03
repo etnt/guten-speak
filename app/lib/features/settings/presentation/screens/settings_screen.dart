@@ -19,6 +19,8 @@ class SettingsScreen extends ConsumerWidget {
     final selectedVoice = ref.watch(selectedVoiceProvider);
     final speed = ref.watch(narrationSpeedProvider);
     final headStart = ref.watch(headStartProvider);
+    final sleepTimerEnabled = ref.watch(sleepTimerEnabledProvider);
+    final sleepTimerTimeout = ref.watch(sleepTimerTimeoutProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -73,6 +75,38 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (value) =>
                 ref.read(headStartProvider.notifier).set(value),
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.bedtime_outlined),
+            title: const Text('Sleep timer'),
+            subtitle: const Text('Pause narration after inactivity'),
+            value: sleepTimerEnabled,
+            onChanged: (v) =>
+                ref.read(sleepTimerEnabledProvider.notifier).set(v),
+          ),
+          ListTile(
+            leading: const Icon(Icons.timer_outlined),
+            title: const Text('Sleep timer duration'),
+            subtitle: const Text('Inactivity before narration pauses'),
+            enabled: sleepTimerEnabled,
+            trailing: DropdownButton<int>(
+              value: sleepTimerTimeout,
+              underline: const SizedBox.shrink(),
+              items: [
+                for (final seconds in SleepTimerTimeoutNotifier.options)
+                  DropdownMenuItem<int>(
+                    value: seconds,
+                    child: Text(_formatSleepTimer(seconds)),
+                  ),
+              ],
+              onChanged: sleepTimerEnabled
+                  ? (v) {
+                      if (v != null) {
+                        ref.read(sleepTimerTimeoutProvider.notifier).set(v);
+                      }
+                    }
+                  : null,
+            ),
+          ),
           const Divider(),
           const _SectionHeader('Reading'),
           const _DictionaryTile(),
@@ -109,6 +143,11 @@ class SettingsScreen extends ConsumerWidget {
 
   static String _formatSpeed(double value) =>
       value == value.truncateToDouble() ? '${value.toInt()}×' : '$value×';
+
+  static String _formatSleepTimer(int seconds) {
+    if (seconds < 60) return '$seconds sec';
+    return '${seconds ~/ 60} min';
+  }
 }
 
 class _SectionHeader extends StatelessWidget {

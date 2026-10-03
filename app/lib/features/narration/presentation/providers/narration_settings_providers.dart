@@ -67,3 +67,83 @@ final narrationSpeedProvider =
     StateNotifierProvider<NarrationSpeedNotifier, double>(
       (ref) => NarrationSpeedNotifier(),
     );
+
+/// Whether the sleep timer is enabled. Persisted across launches.
+class SleepTimerEnabledNotifier extends StateNotifier<bool> {
+  SleepTimerEnabledNotifier() : super(false) {
+    _load();
+  }
+
+  static const String _key = 'sleep_timer_enabled';
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getBool(_key);
+    if (stored != null) state = stored;
+  }
+
+  Future<void> set(bool value) async {
+    if (value == state) return;
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, value);
+  }
+}
+
+final sleepTimerEnabledProvider =
+    StateNotifierProvider<SleepTimerEnabledNotifier, bool>(
+      (ref) => SleepTimerEnabledNotifier(),
+    );
+
+/// Duration (in seconds) of inactivity before the sleep timer fires.
+/// Persisted across launches.
+class SleepTimerTimeoutNotifier extends StateNotifier<int> {
+  SleepTimerTimeoutNotifier() : super(_default) {
+    _load();
+  }
+
+  static const String _key = 'sleep_timer_timeout_seconds';
+  static const String _legacyKey = 'sleep_timer_timeout_minutes';
+  static const int _default = 15 * 60;
+
+  /// Timeout options in seconds, including short values for testing.
+  static const List<int> options = [
+    30,
+    60,
+    5 * 60,
+    10 * 60,
+    15 * 60,
+    20 * 60,
+    30 * 60,
+    60 * 60,
+  ];
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedSeconds = prefs.getInt(_key);
+    if (storedSeconds != null && options.contains(storedSeconds)) {
+      state = storedSeconds;
+      return;
+    }
+
+    // Preserve the original minute-based setting if it was saved by an earlier
+    // build of the sleep timer feature.
+    final storedMinutes = prefs.getInt(_legacyKey);
+    if (storedMinutes != null && options.contains(storedMinutes * 60)) {
+      state = storedMinutes * 60;
+      await prefs.setInt(_key, state);
+    }
+  }
+
+  Future<void> set(int value) async {
+    if (!options.contains(value) || value == state) return;
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_key, value);
+  }
+}
+
+final sleepTimerTimeoutProvider =
+    StateNotifierProvider<SleepTimerTimeoutNotifier, int>(
+      (ref) => SleepTimerTimeoutNotifier(),
+    );

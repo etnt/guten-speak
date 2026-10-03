@@ -12,6 +12,7 @@ import '../../domain/entities/narration_playback.dart';
 import '../../domain/entities/narration_prep_progress.dart';
 import '../providers/narration_player_providers.dart';
 import '../providers/narration_settings_providers.dart';
+import '../providers/sleep_timer_provider.dart';
 import '../providers/tts_providers.dart';
 
 /// The narration player screen.
@@ -382,6 +383,7 @@ class _PlayerCard extends ConsumerWidget {
     WidgetRef ref,
     NarrationPlaybackState playback,
   ) async {
+    ref.read(sleepTimerControllerProvider.notifier).resetTimer();
     final handler = await ref.read(narrationAudioHandlerProvider.future);
     if (playback.isPlaying) {
       await handler.pause();
@@ -391,16 +393,19 @@ class _PlayerCard extends ConsumerWidget {
   }
 
   Future<void> _skipNext(WidgetRef ref) async {
+    ref.read(sleepTimerControllerProvider.notifier).resetTimer();
     final handler = await ref.read(narrationAudioHandlerProvider.future);
     await handler.skipToNext();
   }
 
   Future<void> _skipPrevious(WidgetRef ref) async {
+    ref.read(sleepTimerControllerProvider.notifier).resetTimer();
     final handler = await ref.read(narrationAudioHandlerProvider.future);
     await handler.skipToPrevious();
   }
 
   Future<void> _seekToUnit(WidgetRef ref, int unit) async {
+    ref.read(sleepTimerControllerProvider.notifier).resetTimer();
     final handler = await ref.read(narrationAudioHandlerProvider.future);
     await handler.seekToUnit(unit);
   }
