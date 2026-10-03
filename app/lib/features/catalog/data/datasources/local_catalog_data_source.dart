@@ -55,6 +55,27 @@ class LocalCatalogDataSource {
     return rows.map(_rowToBook).toList(growable: false);
   }
 
+  /// Returns books whose subject list contains [subject] (case-insensitive
+  /// substring match, like Gutendex's `topic` filter), up to [limit] results
+  /// ordered by book id — the oldest, canonically famous titles first; the
+  /// catalog CSV carries no download counts to rank by.
+  Future<List<BookSummary>> bySubject(String subject, {int limit = 60}) async {
+    // Escape LIKE wildcards so a subject containing `%` or `_` matches
+    // literally; [subject] is app-controlled today, but keep the query safe.
+    final pattern = subject
+        .toLowerCase()
+        .replaceAll('\\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+    final rows = await _db.rawQuery(
+      'SELECT $_columns FROM ${Db.catalog} '
+      "WHERE ${Db.catSubjects} LIKE ? ESCAPE '\\' "
+      'ORDER BY ${Db.catId} LIMIT ?',
+      ['%$pattern%', limit],
+    );
+    return rows.map(_rowToBook).toList(growable: false);
+  }
+
   /// Looks up a single book by its Project Gutenberg id.
   Future<BookSummary?> bookById(int id) async {
     final rows = await _db.rawQuery(

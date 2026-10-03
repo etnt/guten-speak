@@ -31,7 +31,9 @@ synthesized), reading _and_ listening work with no network.
 
 ## Features
 
-- **Discover** popular and curated-topic books via the Gutendex API.
+- **Discover** popular books via the Gutendex API, plus curated-topic shelves
+  (Fiction, Adventure, …) served from the on-device catalog index — Gutendex's
+  `topic` filter times out server-side, so the local catalog is used instead.
 - **Offline search & book detail** from an on-device index of Project
   Gutenberg's `pg_catalog.csv` (~80k English texts), so search works without
   relying on a live API.
