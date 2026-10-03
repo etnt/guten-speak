@@ -45,8 +45,6 @@ jobs:
       # portal (which occasionally returns transient 403s from CI runners).
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
-        with:
-          build-root-directory: app/android
 
       - name: Install dependencies
         run: flutter pub get

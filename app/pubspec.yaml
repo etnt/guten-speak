@@ -51,6 +51,12 @@ dependencies:
   json_annotation: ">=4.9.0 <4.10.0"
   crypto: ^3.0.7
 
+  # ── Release checks ──
+  auto_upgrade:
+    git:
+      url: https://github.com/etnt/auto_upgrade.git
+  url_launcher: ^6.3.0
+
   # ── EPUB parsing ──
   xml: ^6.5.0
   html: ^0.15.5

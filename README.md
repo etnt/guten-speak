@@ -159,6 +159,11 @@ flutter test
 The header on the Discover screen shows the app version: `dev` for local/debug
 builds, or the release tag (e.g. `v1.0.0`) for CI-built release APKs. See below.
 
+On release builds, Guten-Speak checks GitHub for a newer release after startup,
+at most once every 24 hours. If one is available, the app offers to open its
+release page in your browser; development builds and offline check failures stay
+silent.
+
 ---
 
 ## Release signing
